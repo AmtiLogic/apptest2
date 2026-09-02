@@ -4,10 +4,9 @@ A browser based Texas Hold'em practice table. You play against five bots and
 every decision you make is graded the moment you make it, with an explanation
 that talks about your actual cards, your actual seat and the actual price you
 were offered. Every piece of poker jargon anywhere in the interface is
-tappable. Tapping one opens a definition written for somebody who has never
-heard the word before, an example, and a line about the hand you are in right
-now: which seat you are in compared to the button, what a call would cost you,
-how many outs you actually have.
+tappable, and tapping one answers it for the hand you are in right now:
+which seat you are in compared to the button, what a call would cost, how many
+outs you actually have. One line, then the general meaning underneath.
 
 It is a poker game first. The coach never pauses the game, never asks you to
 dismiss anything, and never undoes what you did. The hand carries on
@@ -89,20 +88,30 @@ because the service worker caches every file.
 
 ## The words
 
-Eighty terms, and every one of them is tappable wherever it appears, including
-inside a coach banner and in the readout under your cards. A definition never
-uses a word that is not itself defined and tappable, so you can always keep
-pulling the thread until you hit something you know.
+Eighty terms, tappable wherever they appear, including inside a coach banner
+and in the readout under your cards. A definition never uses a word that is not
+itself defined and tappable, so you can keep pulling the thread until you hit
+something you know.
 
-Each one opens with an "At your table" line about the hand in front of you
-rather than a general statement. Tapping **position** mid hand says something
-like "you are one seat to the right of the button, which Kit has, so this hand
-you are the cutoff, and one player still in the hand acts after you on every
-round from the flop on". Tapping **pot odds** does the arithmetic with the real
-numbers you are facing. Tapping **outs** counts yours. The general definition
-sits underneath it.
+Nothing here is a paragraph. Tapping a term answers it for the hand in front of
+you first, then gives the general meaning in one dim line underneath. Tapping
+**position** mid hand reads "you are one seat to the right of the button (Kit
+has it), so this hand you are the cutoff, nobody left acts after you". **Pot
+odds** does the arithmetic with the real numbers. **Outs** counts yours.
+
+Both the notes and the definitions are length capped by the tests, so they stay
+at a glance.
 
 There is also a searchable list of every term under Terms.
+
+## Reading the table
+
+- **D**, **SB** and **BB** under a player mark the dealer button and the two
+  blinds. **1ST** marks whoever opens the current round of betting, and the
+  message line names them too.
+- A caret over a player means it is their turn.
+- When a hand ends, the scoreboard says who won and how much, and every seat
+  shows what the hand cost or made them. Your own number is the big one.
 
 ## The coach
 

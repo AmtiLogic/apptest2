@@ -132,6 +132,7 @@ export function startHand(t) {
   t.lastRaiseSize = t.bigBlind;
   t.lastAggressor = -1;
   t.preflopAggressor = -1;
+  t.streetFirstActor = -1;
   t.street = 'preflop';
   t.handOver = false;
   t.results = null;
@@ -153,6 +154,7 @@ export function startHand(t) {
   t.blindSeats = { sb: sbSeat, bb: bbSeat };
 
   t.toAct = nextToAct(t, bbSeat);
+  t.streetFirstActor = t.toAct;
   if (t.toAct === -1) settleIfDone(t);
   return t;
 }
@@ -331,9 +333,8 @@ function closeStreet(t) {
     return;
   }
 
-  const n = t.players.length;
-  const startFrom = n === 2 ? t.buttonIndex : t.buttonIndex;
-  t.toAct = nextToAct(t, startFrom);
+  t.toAct = nextToAct(t, t.buttonIndex);
+  t.streetFirstActor = t.toAct;
   if (t.toAct === -1) closeStreet(t);
 }
 
@@ -442,6 +443,7 @@ function settle(t) {
   t.results = {
     showdown,
     pots: potResults,
+    winnings: t.players.map((p) => winnings.get(p.index) || 0),
     winners: Array.from(winnings.keys()),
     hands: Array.from(evaluations.entries()).map(([idx, res]) => ({
       seat: idx,

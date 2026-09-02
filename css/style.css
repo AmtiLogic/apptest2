@@ -197,6 +197,7 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
 .seat-tag.dealer { background: var(--ink); color: #000; }
 .seat-tag.blind { border: 1px solid var(--line); color: var(--ink-dim); }
 .seat-tag.blind.big { color: var(--chip); border-color: rgba(245, 196, 81, 0.4); }
+.seat-tag.start { border: 1px solid rgba(61, 220, 151, 0.45); color: var(--accent); }
 
 .seat-action {
   font-size: 9px;
@@ -242,6 +243,8 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
   line-height: 1.35;
 }
 .seat-bet.empty { visibility: hidden; }
+.seat-bet.win { color: var(--good); background: rgba(61, 220, 151, 0.12); }
+.seat-bet.lose { color: var(--mistake); background: rgba(255, 111, 97, 0.1); }
 
 /* ----------------------------------------------------------- board / pot */
 
@@ -316,6 +319,44 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.03em;
 }
+
+/* End of hand scoreboard. */
+.hand-result {
+  flex: 0 0 auto;
+  margin-top: 10px;
+  padding: 11px 14px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  animation: banner-in 0.22s ease-out both;
+}
+.hand-result[hidden] { display: none; }
+.hand-result.won { border-color: rgba(61, 220, 151, 0.4); background: rgba(61, 220, 151, 0.07); }
+.hand-result.lost { border-color: rgba(255, 111, 97, 0.32); background: rgba(255, 111, 97, 0.06); }
+
+.result-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.result-who { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
+.result-delta {
+  font-size: 22px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+}
+.hand-result.won .result-delta { color: var(--good); }
+.hand-result.lost .result-delta { color: var(--mistake); }
+.hand-result.even .result-delta { font-size: 15px; color: var(--ink-faint); }
+
+.result-detail { margin-top: 3px; font-size: 13px; color: var(--ink-dim); }
+
+/* Once the hand is settled the scoreboard is the headline, so the grade for
+   the last decision gives up room rather than pushing the table off screen. */
+#hand-result:not([hidden]) ~ #coach-banner { max-height: 26vh; }
 
 .table-message {
   flex: 0 0 auto;
@@ -578,6 +619,10 @@ input[type="range"]::-moz-range-thumb {
 }
 .hero-stack strong { color: var(--ink-dim); font-weight: 600; }
 
+.hero-net { font-weight: 800; font-variant-numeric: tabular-nums; }
+.hero-net.win { color: var(--good); }
+.hero-net.lose { color: var(--mistake); }
+
 .hero-marks { display: flex; gap: 4px; }
 
 .hero-mark {
@@ -666,50 +711,33 @@ input[type="range"]::-moz-range-thumb {
 
 .sheet-body { margin-top: 14px; }
 
-/* The line tying a definition to the hand being played. */
+/* What the word means for the hand in front of you. This is the main event,
+   so it gets the size, and the general definition sits under it. */
 .live-note {
-  margin-bottom: 18px;
-  padding: 11px 13px;
-  border-radius: var(--radius);
-  background: var(--accent-soft);
-  border: 1px solid rgba(61, 220, 151, 0.25);
+  font-size: 17px;
+  line-height: 1.4;
+  color: var(--ink);
+  margin-bottom: 14px;
 }
-.live-note-label {
-  font-size: 9px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--accent);
-  margin-bottom: 4px;
-}
-.live-note-text { font-size: 14px; line-height: 1.45; color: var(--ink); }
 
-.sense { margin-bottom: 18px; }
+.sense { margin-bottom: 12px; }
 .sense-label {
   font-size: 10px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--accent);
-  margin-bottom: 5px;
-}
-.sense-text { font-size: 15px; line-height: 1.5; }
-.sense-example {
-  margin-top: 8px;
-  padding: 10px 12px;
-  border-radius: var(--radius);
-  background: var(--surface-high);
-  font-size: 13px;
-  color: var(--ink-dim);
-  line-height: 1.45;
-}
-.sense-example em {
-  color: var(--ink-faint);
-  font-style: normal;
-  display: block;
-  font-size: 9px;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
   margin-bottom: 3px;
 }
+.sense-text { font-size: 15px; line-height: 1.45; }
+.sense-text.secondary { font-size: 14px; color: var(--ink-dim); }
+.sense-text.secondary .term { color: var(--ink-dim); text-decoration-color: rgba(141, 141, 149, 0.6); }
+.sense-example {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--ink-faint);
+  line-height: 1.45;
+}
+.sense-example .term { color: var(--ink-faint); }
 
 .screen {
   position: fixed;
@@ -914,8 +942,50 @@ input[type="range"]::-moz-range-thumb {
   .seat-hole { min-height: 17px; margin-top: 2px; }
   .mini-card { width: 12px; height: 17px; }
   .middle { min-height: 66px; }
-  .table-message { padding-top: 5px; }
-  .coach-banner { max-height: 40vh; margin-top: 7px; }
+  /* End of hand scoreboard. */
+.hand-result {
+  flex: 0 0 auto;
+  margin-top: 10px;
+  padding: 11px 14px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  animation: banner-in 0.22s ease-out both;
+}
+.hand-result[hidden] { display: none; }
+.hand-result.won { border-color: rgba(61, 220, 151, 0.4); background: rgba(61, 220, 151, 0.07); }
+.hand-result.lost { border-color: rgba(255, 111, 97, 0.32); background: rgba(255, 111, 97, 0.06); }
+
+.result-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.result-who { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
+.result-delta {
+  font-size: 22px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+}
+.hand-result.won .result-delta { color: var(--good); }
+.hand-result.lost .result-delta { color: var(--mistake); }
+.hand-result.even .result-delta { font-size: 15px; color: var(--ink-faint); }
+
+.result-detail { margin-top: 3px; font-size: 13px; color: var(--ink-dim); }
+
+/* Once the hand is settled the scoreboard is the headline, so the grade for
+   the last decision gives up room rather than pushing the table off screen. */
+#hand-result:not([hidden]) ~ #coach-banner { max-height: 26vh; }
+
+.table-message { padding-top: 5px; }
+  .coach-banner { max-height: 32vh; margin-top: 7px; }
+  #hand-result:not([hidden]) ~ #coach-banner { max-height: 20vh; }
+  .hand-result { margin-top: 7px; padding: 9px 12px; }
+  .result-who { font-size: 16px; }
+  .result-delta { font-size: 20px; }
   .coach-text { font-size: 13px; }
   .hero-zone { padding: 7px 0 4px; }
   .action-area { margin-bottom: 8px; }

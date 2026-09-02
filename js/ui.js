@@ -10,9 +10,9 @@ export const dom = {};
 export function cacheDom() {
   const ids = [
     'hand-number', 'coach-state', 'opponents', 'board', 'pot-amount',
-    'table-message', 'coach-banner', 'action-area', 'hero-cards', 'hero-stack',
-    'hero-readout', 'sheet', 'sheet-title', 'sheet-body', 'screen',
-    'screen-title', 'screen-body'
+    'table-message', 'hand-result', 'coach-banner', 'action-area', 'hero-cards',
+    'hero-stack', 'hero-readout', 'sheet', 'sheet-title', 'sheet-body',
+    'screen', 'screen-title', 'screen-body'
   ];
   for (const id of ids) {
     dom[camel(id)] = document.getElementById(id);
@@ -135,6 +135,11 @@ function seatEl(table, player, options) {
   // Dealer button, blind marker and the last action share one row, so
   // nothing sits on top of the avatar.
   const meta = el('div', 'seat-meta');
+  if (table.streetFirstActor === player.index && !table.handOver) {
+    const badge = el('span', 'seat-tag start', '1ST');
+    badge.title = 'Acts first this round';
+    meta.appendChild(badge);
+  }
   if (table.buttonIndex === player.index) {
     const badge = el('span', 'seat-tag dealer', 'D');
     badge.title = 'Dealer button';
@@ -160,10 +165,18 @@ function seatEl(table, player, options) {
   }
   seat.appendChild(hole);
 
-  // Always present so a bet appearing does not shift the row.
-  const bet = el('div', 'seat-bet' + (player.committed > 0 ? '' : ' empty'),
-    player.committed > 0 ? player.committed : '0');
-  seat.appendChild(bet);
+  // Always present so a bet appearing does not shift the row. Once the hand
+  // is settled this slot shows what the player won or lost instead.
+  const net = options.nets ? options.nets[player.index] : null;
+  if (net !== null && net !== undefined && net !== 0) {
+    seat.appendChild(el(
+      'div', 'seat-bet ' + (net > 0 ? 'win' : 'lose'),
+      (net > 0 ? '+' : '') + net
+    ));
+  } else {
+    seat.appendChild(el('div', 'seat-bet' + (player.committed > 0 ? '' : ' empty'),
+      player.committed > 0 ? player.committed : '0'));
+  }
   return seat;
 }
 
@@ -178,7 +191,7 @@ export function blindLabel(table, seatIndex) {
 
 // -------------------------------------------------------------------- hero
 
-export function renderHero(table, hero, readout) {
+export function renderHero(table, hero, readout, heroNet) {
   clear(dom.heroCards);
   dom.heroCards.classList.toggle('folded', !!hero.folded);
   if (hero.hasCards && hero.hole.length) {
@@ -210,12 +223,50 @@ export function renderHero(table, hero, readout) {
     stack.appendChild(document.createTextNode(', ' + hero.committed + ' in'));
   }
   dom.heroStack.appendChild(stack);
+  if (heroNet !== null && heroNet !== undefined && heroNet !== 0) {
+    dom.heroStack.appendChild(el(
+      'span', 'hero-net ' + (heroNet > 0 ? 'win' : 'lose'),
+      (heroNet > 0 ? '+' : '') + heroNet
+    ));
+  }
 
   clear(dom.heroReadout);
   if (readout && readout.markup) {
     dom.heroReadout.appendChild(el('span', 'readout-label', 'You have'));
     dom.heroReadout.appendChild(renderMarkup(readout.markup));
   }
+}
+
+/**
+ * The scoreboard at the end of a hand: who won, how much, and what it cost
+ * or made you. Shown instead of the running commentary.
+ */
+export function showResult(result) {
+  const node = dom.handResult;
+  clear(node);
+  node.hidden = false;
+  node.className = 'hand-result ' +
+    (result.net > 0 ? 'won' : (result.net < 0 ? 'lost' : 'even'));
+
+  const top = el('div', 'result-top');
+  top.appendChild(el('div', 'result-who', result.headline));
+  const delta = el('div', 'result-delta');
+  delta.textContent = result.net > 0
+    ? '+' + result.net
+    : (result.net < 0 ? String(result.net) : 'even');
+  top.appendChild(delta);
+  node.appendChild(top);
+
+  if (result.detail) {
+    const detail = el('div', 'result-detail');
+    detail.appendChild(renderMarkup(result.detail));
+    node.appendChild(detail);
+  }
+}
+
+export function hideResult() {
+  dom.handResult.hidden = true;
+  clear(dom.handResult);
 }
 
 export function setPot(amount) {
@@ -435,54 +486,30 @@ export function openTermSheet(slug) {
   dom.sheetTitle.textContent = term.title;
   clear(dom.sheetBody);
 
-  // What this word means at your table, right now, before the general
-  // definition. This is usually the part that makes it click.
+  // What the word means for the hand in front of you comes first and gets the
+  // most weight. The general definition is the small print under it.
   const live = liveNoteFor ? liveNoteFor(term.slug) : null;
   if (live) {
     const box = el('div', 'live-note');
-    box.appendChild(el('div', 'live-note-label', 'At your table'));
-    const body = el('div', 'live-note-text');
-    body.appendChild(renderMarkup(live));
-    box.appendChild(body);
+    box.appendChild(renderMarkup(live));
     dom.sheetBody.appendChild(box);
   }
 
   for (const sense of term.senses) {
     const wrap = el('div', 'sense');
     if (sense.label) wrap.appendChild(el('div', 'sense-label', sense.label));
-    const text = el('div', 'sense-text');
+    const text = el('div', 'sense-text' + (live ? ' secondary' : ''));
     text.appendChild(renderMarkup(sense.text));
     wrap.appendChild(text);
-    if (sense.example) {
+    // The live line already is an example, so only fall back to the written
+    // one when there is nothing to say about this hand.
+    if (sense.example && !live) {
       const example = el('div', 'sense-example');
-      example.appendChild(el('em', null, 'Example'));
-      const body = el('span');
-      body.appendChild(renderMarkup(sense.example));
-      example.appendChild(body);
+      example.appendChild(renderMarkup(sense.example));
       wrap.appendChild(example);
     }
     dom.sheetBody.appendChild(wrap);
   }
-  dom.sheet.hidden = false;
-  dom.sheet.querySelector('.sheet-panel').scrollTop = 0;
-}
-
-export function openInfoSheet(title, markup, extra) {
-  dom.sheetTitle.textContent = title;
-  clear(dom.sheetBody);
-  const wrap = el('div', 'sense');
-  const text = el('div', 'sense-text');
-  text.appendChild(renderMarkup(markup));
-  wrap.appendChild(text);
-  if (extra) {
-    const example = el('div', 'sense-example');
-    example.appendChild(el('em', null, 'Note'));
-    const body = el('span');
-    body.appendChild(renderMarkup(extra));
-    example.appendChild(body);
-    wrap.appendChild(example);
-  }
-  dom.sheetBody.appendChild(wrap);
   dom.sheet.hidden = false;
   dom.sheet.querySelector('.sheet-panel').scrollTop = 0;
 }

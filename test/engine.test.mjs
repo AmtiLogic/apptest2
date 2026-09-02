@@ -10,7 +10,9 @@ import {
   createTable, startHand, legalActions, applyAction, buildPots,
   positionName, activePlayers
 } from '../js/engine.js';
-import { gradeAction, holdingReadout, expandToken, inRange, OPENING_CHARTS } from '../js/coach.js';
+import {
+  gradeAction, holdingReadout, expandToken, inRange, classifyDraws, OPENING_CHARTS
+} from '../js/coach.js';
 import { botAction, buildSeats } from '../js/bots.js';
 import { parseMarkup, resolveSlug, plainText, TERMS } from '../js/glossary.js';
 import { liveNote, hasLiveNote } from '../js/live.js';
@@ -576,8 +578,8 @@ test('folding a hand inside the opening chart is a mistake', () => {
   const fold = grade(t, { type: 'fold' });
   assert.equal(fold.verdict, 'mistake');
   assert.equal(fold.leak, 'foldedTooMuchPreflop');
-  assert.ok(/ace jack/.test(fold.text), 'the banner names the actual cards');
-  assert.ok(/under the gun/.test(fold.text), 'the banner names the actual seat');
+  assert.ok(/ace jack/i.test(fold.text), 'the banner names the actual cards');
+  assert.ok(/under the gun/i.test(fold.text), 'the banner names the actual seat');
   const raise = grade(t, { type: 'raise', amount: 6 });
   assert.equal(raise.verdict, 'good');
 });
@@ -625,6 +627,34 @@ test('facing a raise, junk is a fold and calling is a mistake', () => {
   assert.equal(call.verdict, 'mistake');
   assert.equal(call.leak, 'calledTooWidePreflop');
   assert.ok(/4 chips/.test(call.text), 'the banner names the real price');
+});
+
+test('cards that only pair the board are not outs', () => {
+  // King three of diamonds on two two seven six, with three diamonds out.
+  // Nine diamonds finish the flush, three threes and two off suit kings
+  // pair a card the player actually holds. The sevens, sixes and twos pair
+  // the board, which helps everybody equally, so they must not be counted.
+  const draws = classifyDraws(parseCards('Kh 3d'), parseCards('2h 2d 7d 6d'));
+  assert.equal(draws.outs, 14, 'nine flush cards, three threes, two kings');
+  assert.ok(draws.flushDraw);
+  for (const card of draws.outCards) {
+    const pairsBoardOnly = [2, 6, 7].includes(card.rank) && card.suit !== 'd';
+    assert.ok(!pairsBoardOnly, 'counted a board pairing card: ' + card.rank + card.suit);
+  }
+});
+
+test('out counts match the textbook numbers', () => {
+  const cases = [
+    ['Ah 5h', 'Kh 9h 2c', 12, 'flush draw plus three aces'],
+    ['8h 7c', '9c 6d 2s', 8, 'open ended straight draw'],
+    ['8h 7c', '9c 5d 2s', 4, 'gutshot'],
+    ['Ah Kd', 'Qh Jc 2s', 10, 'gutshot plus six overcards'],
+    ['7h 3d', 'Kd Kh 3s', 2, 'only the two remaining threes']
+  ];
+  for (const [hole, board, expected, why] of cases) {
+    const draws = classifyDraws(parseCards(hole), parseCards(board));
+    assert.equal(draws.outs, expected, hole + ' on ' + board + ' should be ' + why);
+  }
 });
 
 test('a draw at the right price should be called and not folded', () => {
@@ -748,6 +778,7 @@ test('every term the coach links to exists in the glossary', () => {
   const seats = buildSeats(6, 'You');
   const t = createTable({ seats, startingStack: 200, smallBlind: 1, bigBlind: 2, rng });
   let graded = 0;
+  const bannerWords = [];
   const verdicts = { good: 0, fine: 0, mistake: 0 };
 
   for (let hand = 0; hand < 400; hand++) {
@@ -770,6 +801,9 @@ test('every term the coach links to exists in the glossary', () => {
         assert.ok(result, 'every legal decision gets a verdict');
         assert.ok(['good', 'fine', 'mistake'].includes(result.verdict), 'verdict is one of three');
         assert.ok(result.text && result.text.length > 20, 'the banner explains itself');
+        const words = plainText(result.text).split(/\s+/).length;
+        assert.ok(words <= 45, 'banner stays glanceable, got ' + words + ': ' + result.text);
+        bannerWords.push(words);
         assert.ok(!/[!–—]/.test(result.text), 'copy avoids dashes and exclamation marks');
         for (const token of parseMarkup(result.text)) {
           if (token.type === 'term') {
@@ -796,6 +830,9 @@ test('every term the coach links to exists in the glossary', () => {
     }
   }
 
+  bannerWords.sort((a, b) => a - b);
+  const median = bannerWords[Math.floor(bannerWords.length / 2)];
+  assert.ok(median <= 30, 'the typical banner is short, median was ' + median + ' words');
   assert.ok(graded > 300, 'the fuzz run actually graded decisions, got ' + graded);
   assert.ok(verdicts.good > 0 && verdicts.fine > 0 && verdicts.mistake > 0,
     'all three verdict levels are reachable: ' + JSON.stringify(verdicts));
@@ -861,6 +898,7 @@ test('the button note tracks the button as it moves', () => {
 test('live notes stay sane through whole hands at every table size', () => {
   const rng = makeRng(90210);
   const slugs = Object.keys(TERMS);
+  const noteLengths = [];
   let produced = 0;
 
   for (const seatCount of [2, 6, 9]) {
@@ -878,6 +916,9 @@ test('live notes stay sane through whole hands at every table size', () => {
           produced += 1;
           assert.equal(typeof note, 'string');
           assert.ok(note.length > 10, slug + ' note is too short: ' + note);
+          const noteWords = plainText(note).split(/\s+/).length;
+          assert.ok(noteWords <= 32, slug + ' note is too long (' + noteWords + '): ' + note);
+          noteLengths.push(noteWords);
           assert.ok(!/[!–—]/.test(note), slug + ' note uses a dash or exclamation: ' + note);
           assert.ok(
             !/undefined|NaN|null|\[object/.test(note),
@@ -898,6 +939,9 @@ test('live notes stay sane through whole hands at every table size', () => {
       }
     }
   }
+  noteLengths.sort((a, b) => a - b);
+  const median = noteLengths[Math.floor(noteLengths.length / 2)];
+  assert.ok(median <= 18, 'the typical live note is one glance, median ' + median + ' words');
   assert.ok(produced > 20000, 'the sweep actually produced notes, got ' + produced);
 });
 
@@ -921,6 +965,61 @@ test('every term that claims a live note can produce one mid hand', () => {
   assert.ok(
     missing.length <= 6,
     'too many live notes stayed silent on a finished board: ' + missing.join(', ')
+  );
+});
+
+test('the engine reports what each player collected', () => {
+  const t = table(3, 55);
+  t.players[0].stack = 20;
+  startHand(t);
+  while (!t.handOver) {
+    applyAction(t, { type: 'raise', amount: legalActions(t).maxRaiseTo });
+  }
+  const collected = t.results.winnings;
+  assert.equal(collected.length, 3);
+  const paidIn = t.players.reduce((sum, p) => sum + p.totalCommitted, 0);
+  assert.equal(
+    collected.reduce((a, b) => a + b, 0), paidIn,
+    'everything paid in is handed back out'
+  );
+  for (let i = 0; i < 3; i++) {
+    assert.equal(t.results.net[i], collected[i] - t.players[i].totalCommitted);
+  }
+});
+
+test('who starts each betting round is tracked', () => {
+  const t = table(6, 77);
+  startHand(t);
+  // Under the gun opens before the flop, three seats past the button.
+  assert.equal(
+    positionName(t.streetFirstActor, t.buttonIndex, 6), 'UTG',
+    'the first seat after the blinds opens preflop'
+  );
+  while (t.street === 'preflop' && !t.handOver) {
+    const legal = legalActions(t);
+    applyAction(t, legal.canCheck ? { type: 'check' } : { type: 'call' });
+  }
+  assert.equal(t.street, 'flop');
+  assert.equal(
+    positionName(t.streetFirstActor, t.buttonIndex, 6), 'SB',
+    'the small blind opens after the flop'
+  );
+  assert.equal(t.streetFirstActor, t.toAct, 'and it is their turn');
+});
+
+test('definitions stay to a single short line', () => {
+  const lengths = [];
+  for (const slug of Object.keys(TERMS)) {
+    for (const sense of TERMS[slug].senses) {
+      const words = plainText(sense.text).split(/\s+/).length;
+      assert.ok(words <= 28, slug + ' definition runs long (' + words + '): ' + sense.text);
+      lengths.push(words);
+    }
+  }
+  lengths.sort((a, b) => a - b);
+  assert.ok(
+    lengths[Math.floor(lengths.length / 2)] <= 18,
+    'the typical definition is one line'
   );
 });
 

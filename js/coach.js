@@ -306,6 +306,17 @@ export function classifyDraws(hole, board) {
     const helpsHero = after.best.some((c) => hole.some((h) => sameCard(h, c)));
     if (!helpsHero) continue;
 
+    // A card that pairs the board is not an out. It improves the hand on
+    // paper, and the player's kicker still shows up in the best five, but
+    // everybody at the table gets the same card. To count, the card has to
+    // work with one of their own two: pair one of them, finish their flush,
+    // or complete a straight they are actually in.
+    const pairsHoleCard = hole.some((h) => h.rank === card.rank);
+    const finishesFlush = !!flushSuit && card.suit === flushSuit;
+    const finishesStraight = after.category === CATEGORY.STRAIGHT ||
+      after.category === CATEGORY.STRAIGHT_FLUSH;
+    if (!pairsHoleCard && !finishesFlush && !finishesStraight) continue;
+
     let isOut = false;
     if (after.category >= CATEGORY.STRAIGHT) {
       isOut = true;
@@ -536,46 +547,43 @@ function gradePreflopFirstIn(spot, action) {
 
   if (isBB && spot.canCheck) {
     if (action.type === 'check') {
-      return banner('good', 'Checking is free from ' + where + ', you already have ' +
-        chips(spot.bigBlind) + ' in and nobody raised. Take the [[flop]] with ' + hand + '.');
+      return banner('good', 'Free [[flop]]. Nobody raised and your [[big-blind|big blind]] is already in.');
     }
     if (action.type === 'raise') {
       const strong = inRange(spot.code, 'TT+, AQs, AKs, AQo, AKo');
       return strong
-        ? banner('good', 'Raising ' + hand + ' from ' + where + ' over ' +
-            (spot.limpers || 'the') + ' [[limp|limpers]] is right, this hand is much better than a [[limp|limping]] [[range]].')
-        : banner('fine', 'Raising ' + hand + ' from ' + where + ' is playable, though checking and seeing a free [[flop]] is the simpler line with a hand this size.');
+        ? banner('good', 'Right. ' + capitalize(hand) + ' is far better than a [[limp|limping]] [[range]].')
+        : banner('fine', 'Playable, but a free [[flop]] is simpler with ' + hand + '.');
     }
-    return banner('fine', 'You had a free look at the [[flop]] from ' + where + '.');
+    return banner('fine', 'You had a free look at the [[flop]].');
   }
 
   if (inChart) {
     if (action.type === 'raise') {
-      return banner('good', 'Raising ' + hand + ' from ' + where + ' is a standard [[open]]. It is in the opening [[range]] for this seat and there are only ' +
-        (spot.opponents) + ' players left to act behind you.' + limpNote);
+      return banner('good', hand + ' is a standard [[open]] from ' + where + '.' + limpNote);
     }
     if (action.type === 'fold') {
-      return banner('mistake', 'Folding ' + hand + ' from ' + where + ' is too [[tight]]. This hand is inside the opening [[range]] for this seat, so folding it throws away a spot you are supposed to be playing.' + limpNote, {
+      return banner('mistake', 'Too [[tight]]. ' + capitalize(hand) + ' is inside the opening [[range]] from ' + where + ', so that is a spot you are meant to play.', {
         leak: 'foldedTooMuchPreflop',
         better: 'Raise to ' + chips(spot.bigBlind * 3)
       });
     }
-    return banner('fine', '[[limp|Limping]] ' + hand + ' from ' + where + ' is not a disaster, but raising is better. Raising wins the [[blinds]] sometimes and takes the lead in the [[hand]].', {
+    return banner('fine', '[[limp|Limping]] ' + hand + ' is playable, but raising is better. It wins the [[blinds]] outright sometimes.', {
       better: 'Raise to ' + chips(spot.bigBlind * 3)
     });
   }
 
   if (action.type === 'fold') {
-    return banner('good', 'Folding ' + hand + ' from ' + where + ' is correct. It is outside the opening [[range]] for this seat, and hands like this lose money played [[out-of-position|out of position]].' + limpNote);
+    return banner('good', 'Correct. ' + capitalize(hand) + ' is outside the opening [[range]] from ' + where + '.' + limpNote);
   }
   if (action.type === 'raise' || action.type === 'call') {
     const word = action.type === 'raise' ? 'Raising' : '[[limp|Limping]]';
     if (defensible) {
-      return banner('fine', word + ' ' + hand + ' from ' + where + ' is on the loose side. This hand plays fine from the [[button]] but from here there are too many players still to act.', {
+      return banner('fine', 'Loose. ' + capitalize(hand) + ' is a [[button]] hand, and from ' + where + ' too many players still act behind you.', {
         better: 'Fold'
       });
     }
-    return banner('mistake', word + ' ' + hand + ' from ' + where + ' plays too many weak hands. This hand is outside even the widest [[button]] opening [[range]], so it is losing money from every seat.', {
+    return banner('mistake', 'Too wide. ' + capitalize(hand) + ' is outside even the [[button]] [[range]], so it loses money from every seat.', {
       leak: 'calledTooWidePreflop',
       better: 'Fold'
     });
@@ -603,16 +611,14 @@ function gradePreflopFacingRaise(spot, action) {
 
   if (shouldThreeBet) {
     if (action.type === 'raise') {
-      return banner('good', 'Re-raising ' + hand + ' over ' + raiserWord +
-        ' is right. This is one of the few hands strong enough to [[three-bet]], and it is comfortably ahead of the [[range]] they open there.');
+      return banner('good', 'Right. ' + capitalize(hand) + ' is well ahead of the [[range]] ' + raiserWord + ' opens, and strong enough to [[three-bet]].');
     }
     if (action.type === 'call') {
-      return banner('fine', 'Calling with ' + hand + ' keeps you in the [[hand]], but this is strong enough to [[three-bet]]. Re-raising builds a [[pot]] while you are ahead and stops the players behind you from coming along cheaply.', {
+      return banner('fine', capitalize(hand) + ' is strong enough to [[three-bet]]. Re-raising builds the [[pot]] while you are ahead.', {
         better: 'Raise to ' + chips(Math.max(spot.raiseTo * 3, spot.bigBlind * 8))
       });
     }
-    return banner('mistake', 'Folding ' + hand + ' to a raise from ' + raiserWord +
-      ' throws away one of the best hands you can be dealt. ' + priceLine, {
+    return banner('mistake', 'That is one of the best hands you can be dealt. ' + priceLine, {
       leak: 'foldedTooMuchPreflop',
       better: 'Raise to ' + chips(Math.max(spot.raiseTo * 3, spot.bigBlind * 8))
     });
@@ -620,36 +626,30 @@ function gradePreflopFacingRaise(spot, action) {
 
   if (shouldCall) {
     if (action.type === 'call') {
-      const bbNote = isBB
-        ? ' You are in ' + where + ', so you are getting a discount on the [[call]] because your [[blinds|blind]] is already in.'
-        : '';
-      return banner('good', 'Calling ' + hand + ' against ' + raiserWord + ' is right. ' + priceLine + bbNote);
+      const bbNote = isBB ? ' Your [[blinds|blind]] is already in, so you get a discount.' : '';
+      return banner('good', 'Right price for ' + hand + ' against ' + raiserWord + '. ' + priceLine + bbNote);
     }
     if (action.type === 'fold') {
-      return banner('mistake', 'Folding ' + hand + ' to a raise from ' + raiserWord +
-        ' is too [[tight]], that hand is comfortably ahead of what they [[open]] there. ' + priceLine, {
+      return banner('mistake', 'Too [[tight]]. ' + capitalize(hand) + ' is ahead of what ' + raiserWord + ' [[open|opens]] there. ' + priceLine, {
         leak: 'foldedTooMuchPreflop',
         better: 'Call ' + chips(spot.toCall)
       });
     }
-    return banner('fine', 'Re-raising ' + hand + ' is playable as a [[bluff]], but calling is the simpler line. This hand does well seeing a [[flop]] and badly in a re-raised [[pot]].', {
+    return banner('fine', 'Playable as a [[bluff]], but ' + hand + ' does better just seeing a [[flop]].', {
       better: 'Call ' + chips(spot.toCall)
     });
   }
 
   if (action.type === 'fold') {
-    return banner('good', 'Folding ' + hand + ' to a raise from ' + raiserWord + ' is correct. ' + priceLine +
-      ' Hands like this are often [[dominated]] by what they raise with.');
+    return banner('good', 'Correct. ' + priceLine + ' ' + capitalize(hand) + ' is often [[dominated]] by what they raise with.');
   }
   if (action.type === 'call') {
-    return banner('mistake', 'Calling a raise from ' + raiserWord + ' with ' + hand +
-      ' plays too wide. ' + priceLine + ' This hand is behind their opening [[range]] and it is often [[dominated]].', {
+    return banner('mistake', 'Too wide. ' + capitalize(hand) + ' is behind ' + raiserWord + ' opening [[range]] and often [[dominated]]. ' + priceLine, {
       leak: 'calledTooWidePreflop',
       better: 'Fold'
     });
   }
-  return banner('mistake', 'Re-raising ' + hand + ' over ' + raiserWord +
-    ' turns a weak hand into a big [[pot]]. ' + priceLine, {
+  return banner('mistake', 'That turns a weak hand into a big [[pot]]. ' + priceLine, {
     leak: 'calledTooWidePreflop',
     better: 'Fold'
   });
@@ -665,17 +665,10 @@ function drawArithmetic(spot, twoCards) {
     outs,
     equity,
     twoCards,
-    line: 'You have ' + outs + ' [[outs]], so about ' + outs + ' times ' + multiplier +
-      ' equals ' + equity + ' percent to get there' +
-      (twoCards ? ' with two cards to come' : ' on the next card') +
-      '. You are paying ' + chips(spot.toCall) + ' into a [[pot]] of ' +
-      chips(spot.pot + spot.toCall) + ', so you need ' + spot.needPct +
-      ' percent ([[pot-odds|pot odds]]).'
+    line: outs + ' [[outs]] is about ' + equity + ' percent' +
+      (twoCards ? ' with two cards to come' : '') + '. You need ' + spot.needPct +
+      ' percent to call ' + chips(spot.toCall) + ' ([[pot-odds|pot odds]]).'
   };
-}
-
-function boardPhrase(spot) {
-  return 'The [[board]] is ' + describeBoard(spot.board);
 }
 
 function gradePostflop(spot, action) {
@@ -697,18 +690,16 @@ function facingBet(spot, action, made, draws, hand) {
   // Strong made hands raise for value.
   if (made.tier >= TIER.MONSTER || (made.tier === TIER.STRONG && spot.street !== 'river')) {
     if (action.type === 'raise') {
-      return withSizing(spot, action, banner('good', 'Raising with ' + made.label.toLowerCase() +
-        ' is right. ' + boardPhrase(spot) + ' and you hold ' + hand +
-        '. A [[raise]] gets more money in while you are ahead, which is a [[value-bet]].'));
+      return withSizing(spot, action, banner('good', capitalize(made.label) +
+        ' is well ahead here. Raising is a [[value-bet]], it gets more in while you are winning.'));
     }
     if (action.type === 'call') {
-      return banner('fine', 'Calling with ' + made.label.toLowerCase() + ' keeps weaker hands in, but raising wins more. ' +
-        price + ' Worse hands will pay you off here.', {
+      return banner('fine', capitalize(made.label) + ' is strong enough to raise. Worse hands pay you off here.', {
         better: 'Raise'
       });
     }
-    return banner('mistake', 'Folding ' + made.label.toLowerCase() + ' with ' + hand + ' on ' +
-      describeBoard(spot.board) + ' throws away a hand that is winning most of the time. ' + price, {
+    return banner('mistake', capitalize(made.label) + ' is winning most of the time on ' +
+      describeBoard(spot.board) + '. ' + price, {
       leak: 'overfoldedPostflop',
       better: 'Raise'
     });
@@ -720,31 +711,30 @@ function facingBet(spot, action, made, draws, hand) {
     const gettingOdds = math.equity >= spot.needPct;
     if (gettingOdds) {
       if (action.type === 'call') {
-        return banner('good', 'Calling with your ' + (draws.markup || 'draw') + ' is right. ' + math.line);
+        return banner('good', 'Right price for your ' + (draws.markup || 'draw') + '. ' + math.line);
       }
       if (action.type === 'fold') {
-        return banner('mistake', 'Folding a ' + (draws.markup || 'draw') + ' at this price gives up too easily. ' + math.line, {
+        return banner('mistake', 'Too cheap to fold a ' + (draws.markup || 'draw') + '. ' + math.line, {
           leak: 'overfoldedPostflop',
           better: 'Call ' + chips(spot.toCall)
         });
       }
-      return banner('fine', 'Raising with your ' + (draws.markup || 'draw') + ' is a [[semi-bluff]], which is defensible. You win right away when they fold and you still have outs when they call. ' + math.line, {
+      return banner('fine', 'A [[semi-bluff]] works too: they fold now, or you hit later. ' + math.line, {
         better: 'Call ' + chips(spot.toCall)
       });
     }
     if (action.type === 'fold') {
-      return banner('good', 'Folding is right, the price is wrong. ' + math.line);
+      return banner('good', 'Right, the price is wrong. ' + math.line);
     }
     if (action.type === 'call') {
-      return banner('mistake', 'Calling here chases a draw at a bad price. ' + math.line +
-        ' You are paying more than the draw is worth.', {
+      return banner('mistake', 'Chasing at a bad price. ' + math.line, {
         leak: 'chasedDraw',
         better: 'Fold'
       });
     }
     return bigDraw
-      ? banner('fine', 'Raising as a [[semi-bluff]] is defensible with ' + draws.outs + ' [[outs]], since calling alone is not profitable here. ' + math.line, { better: 'Fold' })
-      : banner('mistake', 'Raising with ' + draws.outs + ' [[outs]] and no [[made-hand|made hand]] is a [[bluff]] with too little behind it. ' + math.line, {
+      ? banner('fine', 'Defensible as a [[semi-bluff]], since calling alone is not profitable. ' + math.line, { better: 'Fold' })
+      : banner('mistake', 'A [[bluff]] with only ' + draws.outs + ' [[outs]] behind it. ' + math.line, {
         leak: 'badBluff',
         better: 'Fold'
       });
@@ -753,61 +743,57 @@ function facingBet(spot, action, made, draws, hand) {
   // Medium made hands can call at a reasonable price.
   if (made.tier === TIER.MEDIUM || (made.tier === TIER.STRONG && spot.street === 'river')) {
     if (action.type === 'call') {
-      return banner('good', 'Calling with ' + made.label.toLowerCase() + ' is right. ' + price +
-        ' The hand is not strong enough to [[raise]], but it has [[showdown-value|showdown value]] and this price is fine.');
+      return banner('good', capitalize(made.label) + ' has [[showdown-value|showdown value]] and this price is fine. ' + price);
     }
     if (action.type === 'fold') {
       return spot.needPct >= 40
-        ? banner('good', 'Folding ' + made.label.toLowerCase() + ' to a bet this large is fine. ' + price +
-            ' You would need to win ' + spot.needPct + ' percent of the time ([[pot-odds|pot odds]]), and a hand this size does not get there.')
-        : banner('fine', 'Folding ' + made.label.toLowerCase() + ' here is on the [[tight]] side. ' + price +
-            ' You only need to be good ' + spot.needPct + ' percent of the time ([[pot-odds|pot odds]]).', { better: 'Call ' + chips(spot.toCall) });
+        ? banner('good', 'Fine against a bet that big. You would need ' + spot.needPct +
+            ' percent ([[pot-odds|pot odds]]) and ' + made.label.toLowerCase() + ' does not get there.')
+        : banner('fine', 'A bit [[tight]]. You only need ' + spot.needPct +
+            ' percent ([[pot-odds|pot odds]]) with ' + made.label.toLowerCase() + '.',
+          { better: 'Call ' + chips(spot.toCall) });
     }
-    return banner('fine', 'Raising with ' + made.label.toLowerCase() + ' turns a hand with [[showdown-value|showdown value]] into a [[bluff]]. Calling keeps the [[pot]] a size your hand can handle.', {
+    return banner('fine', 'That turns [[showdown-value|showdown value]] into a [[bluff]]. Calling keeps the [[pot]] a size ' + made.label.toLowerCase() + ' can handle.', {
       better: 'Call ' + chips(spot.toCall)
     });
   }
 
   // Nothing and no draw.
   if (action.type === 'fold') {
-    return banner('good', 'Folding is right. You have ' + made.label.toLowerCase() + ' with no [[draw]], and ' +
-      boardPhrase(spot).toLowerCase() + '. ' + price + ' There is nothing here worth ' + chips(spot.toCall) + '.');
+    return banner('good', 'Right. ' + capitalize(made.label) + ', no [[draw]], and ' + price.toLowerCase());
   }
   if (action.type === 'call') {
     if (made.tier === TIER.WEAK && spot.needPct <= 25) {
-      return banner('fine', 'Calling with ' + made.label.toLowerCase() + ' is thin, but the bet is small enough that it is not a real error. ' +
-        price + ' You only need to be good ' + spot.needPct + ' percent of the time ([[pot-odds|pot odds]]), and a weak [[pair]] does get there sometimes.', {
+      return banner('fine', 'Thin, but cheap. You only need ' + spot.needPct +
+        ' percent ([[pot-odds|pot odds]]) and a weak [[pair]] gets there sometimes.', {
         better: 'Fold'
       });
     }
-    return banner('mistake', 'Calling with ' + made.label.toLowerCase() + ' and no [[draw]] is money thrown away. ' +
-      price + ' You cannot win at [[showdown]] and you have no [[outs]] to improve.', {
+    return banner('mistake', capitalize(made.label) + ' with no [[draw]] cannot win at [[showdown]] and has no [[outs]]. ' + price, {
       leak: 'paidOffTooLight',
       better: 'Fold'
     });
   }
   const canBluff = spot.favoursRaiser && spot.opponents === 1;
   return canBluff
-    ? banner('fine', 'Raising as a [[bluff]] is defensible on ' + describeBoard(spot.board) +
-        ', which fits the hands you would have raised with. It is a thin spot against one opponent.', { better: 'Fold' })
-    : banner('mistake', 'Raising with ' + made.label.toLowerCase() + ' is a [[bluff]] into a [[board]] that does not fit your story. ' +
-        capitalize(describeBoard(spot.board)) + ' hits the hands that already bet into you, and you are up against ' +
-        spot.opponents + ' opponent' + (spot.opponents === 1 ? '' : 's') + '.', {
+    ? banner('fine', 'Defensible [[bluff]]. ' + capitalize(describeBoard(spot.board)) +
+        ' fits the hands you would have raised with.', { better: 'Fold' })
+    : banner('mistake', 'A [[bluff]] into a [[board]] that does not fit your story. ' +
+        capitalize(describeBoard(spot.board)) + ' hits the hands that just bet into you.', {
       leak: 'badBluff',
       better: 'Fold'
     });
 }
 
 function noBetToFace(spot, action, made, draws, hand) {
-  const potNote = 'The [[pot]] is ' + chips(spot.pot) + ' and ' + boardPhrase(spot).toLowerCase() + '.';
 
   if (made.tier >= TIER.STRONG) {
     if (action.type === 'bet' || action.type === 'raise') {
-      return withSizing(spot, action, banner('good', 'Betting ' + made.label.toLowerCase() + ' is right. ' + potNote +
-        ' This is a [[value-bet]]: worse hands will call you and you want their money in now.'));
+      return withSizing(spot, action, banner('good', capitalize(made.label) +
+        ' is a [[value-bet]]. Worse hands call, and you want their money in now.'));
     }
-    return banner('mistake', 'Checking ' + made.label.toLowerCase() + ' with ' + hand + ' misses a [[value-bet]]. ' +
-      potNote + ' Weaker hands would have paid you, and checking gives them a free card instead.', {
+    return banner('mistake', 'That misses a [[value-bet]]. ' + capitalize(made.label) +
+      ' gets paid by worse, and checking hands them a free card.', {
       leak: 'missedValue',
       better: 'Bet ' + chips(Math.round(spot.pot * 0.6))
     });
@@ -815,34 +801,32 @@ function noBetToFace(spot, action, made, draws, hand) {
 
   if (draws.isDraw && draws.outs >= 8) {
     if (action.type === 'bet' || action.type === 'raise') {
-      return banner('good', 'Betting your ' + (draws.markup || 'draw') + ' is a [[semi-bluff]] and it is a good one. You have ' +
-        draws.outs + ' [[outs]], so you win the [[pot]] now when they fold and you still improve often when they call.');
+      return banner('good', 'Good [[semi-bluff]]. With ' + draws.outs +
+        ' [[outs]] you win the [[pot]] now if they fold, and often anyway if they call.');
     }
-    return banner('fine', 'Checking a ' + (draws.markup || 'draw') + ' is fine, you keep the [[pot]] small and see the next card for free. Betting is the more profitable line with ' +
+    return banner('fine', 'Fine, you see the next card free. Betting makes more with ' +
       draws.outs + ' [[outs]].', { better: 'Bet ' + chips(Math.round(spot.pot * 0.6)) });
   }
 
   if (made.tier === TIER.MEDIUM || made.tier === TIER.WEAK) {
     if (action.type === 'check') {
-      return banner('good', 'Checking is right. ' + made.label + ' has [[showdown-value|showdown value]] but it is not strong enough to [[value-bet]], and betting only gets called by better. ' + potNote);
+      return banner('good', 'Right. ' + capitalize(made.label) + ' has [[showdown-value|showdown value]], but betting only gets called by better.');
     }
-    return banner('fine', 'Betting ' + made.label.toLowerCase() + ' is thin. It can get called by worse, but hands that call are often ahead of you. ' + potNote, {
+    return banner('fine', 'Thin. ' + capitalize(made.label) + ' gets called by worse sometimes, but callers are often ahead.', {
       better: 'Check'
     });
   }
 
   // Nothing at all.
   if (action.type === 'check') {
-    return banner('good', 'Checking is right with ' + made.label.toLowerCase() + '. ' + potNote +
-      ' There is no [[value-bet]] here and no [[draw]] to protect.');
+    return banner('good', 'Right. No [[value-bet]] with ' + made.label.toLowerCase() + ', and no [[draw]] to protect.');
   }
   if (spot.favoursRaiser && spot.opponents === 1) {
-    return banner('fine', 'Betting here is a reasonable [[continuation-bet]]. ' + potNote +
-      ' That [[board]] is high and disconnected, so it fits the strong hands you would have raised with more than it fits their calling [[range]].');
+    return banner('fine', 'Reasonable [[continuation-bet]]. ' + capitalize(describeBoard(spot.board)) +
+      ' is high and disconnected, so it fits your hands more than their calling [[range]].');
   }
-  return banner('mistake', 'Betting with ' + made.label.toLowerCase() + ' into a [[pot]] of ' +
-    chips(spot.pot) + ' is a [[bluff]] that will not work. ' + capitalize(describeBoard(spot.board)) +
-    ' connects with plenty of the hands that call you, so they are not folding, and you have no [[outs]] when they do not.', {
+  return banner('mistake', 'A [[bluff]] that will not work. ' + capitalize(describeBoard(spot.board)) +
+    ' connects with the hands that call you, and you have no [[outs]] when they do.', {
     leak: 'badBluff',
     better: 'Check'
   });
@@ -859,16 +843,15 @@ function withSizing(spot, action, result) {
   if (spot.made.tier >= TIER.MONSTER && spot.wet && fraction < 0.35) {
     return Object.assign({}, result, {
       verdict: 'fine',
-      text: result.text + ' The size is too small though. On a [[board-texture|wet board]] like this, ' +
-        chips(added) + ' into ' + chips(pot) + ' lets every [[draw]] call cheaply. Bet closer to ' +
-        chips(Math.round(pot * 0.75)) + '.',
+      text: result.text + ' The size is too small though: on a [[board-texture|wet board]], ' +
+        chips(added) + ' into ' + chips(pot) + ' lets every [[draw]] call cheaply.',
       better: 'Bet ' + chips(Math.round(pot * 0.75))
     });
   }
   if (fraction > 3 && spot.made.tier < TIER.MONSTER) {
     return Object.assign({}, result, {
       verdict: 'fine',
-      text: result.text + ' The size is far larger than the [[pot]], which only gets called when you are beaten.',
+      text: result.text + ' The size is far bigger than the [[pot]] though, which only gets called when you are beaten.',
       better: 'Bet ' + chips(Math.round(pot * 0.66))
     });
   }

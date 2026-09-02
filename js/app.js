@@ -73,7 +73,7 @@ function save() {
 const TABLE_FIELDS = [
   'buttonIndex', 'handNumber', 'deck', 'board', 'pot', 'currentBet',
   'lastRaiseSize', 'toAct', 'lastAggressor', 'preflopAggressor', 'street',
-  'log', 'results', 'handOver', 'blindSeats'
+  'log', 'results', 'handOver', 'blindSeats', 'streetFirstActor'
 ];
 
 const PLAYER_FIELDS = [
@@ -175,6 +175,7 @@ function clearTimer() {
 function dealNewHand() {
   clearTimer();
   ui.hideBanner();
+  ui.hideResult();
   ui.resetBoardAnimation();
   startHand(state.table);
   state.stats.handsPlayed += 1;
@@ -269,34 +270,65 @@ function recordVerdict(verdict) {
 
 function finishHand() {
   const t = state.table;
-  const results = t.results;
   render();
-  if (results) {
-    ui.setMessage(resultText(t, results));
+  if (t.results) {
+    ui.setMessage('');
+    ui.showResult(buildResult(t, t.results));
   }
   ui.renderNextHand(dealNewHand, 'Next hand');
   save();
   saveGame();
 }
 
-function resultText(t, results) {
-  const parts = [];
-  for (const pot of results.pots) {
-    const names = pot.winners.map((i) => (i === HERO_SEAT ? 'You' : t.players[i].name));
-    const who = names.join(' and ');
-    const verb = names.length > 1 ? 'split' : (names[0] === 'You' ? 'win' : 'wins');
-    let line = who + ' ' + verb + ' ' + pot.amount;
-    if (results.showdown) {
-      const hand = results.hands.find((h) => h.seat === pot.winners[0]);
-      if (hand) {
-        line += ' with [[' + handTermSlug(hand.category) + '|' +
-          hand.description.toLowerCase() + ']]';
-      }
-    }
-    parts.push(line);
+// Who won, how much, and what the hand did to your stack.
+function buildResult(t, results) {
+  const net = results.net[HERO_SEAT];
+  const collected = results.winnings || t.players.map(() => 0);
+  const best = Math.max.apply(null, collected);
+  // Everyone who collected the most. With a side pot this is the real winner
+  // of the hand, not just whoever took the first pile.
+  const top = [];
+  for (let i = 0; i < collected.length; i++) if (collected[i] === best) top.push(i);
+  const heroWon = top.includes(HERO_SEAT);
+  const names = top.map((i) => (i === HERO_SEAT ? 'You' : t.players[i].name));
+
+  let headline;
+  if (top.length > 1) {
+    headline = names.join(' and ') + ' split ' + best;
+  } else if (heroWon) {
+    headline = 'You win ' + best;
+  } else {
+    headline = (names[0] || 'Nobody') + ' wins ' + best;
   }
-  if (!results.showdown) parts.push('everyone else folded');
-  return parts.join(', ') + '.';
+  if (results.pots.length > 1) headline += ' (side pot)';
+
+  const detail = [];
+  if (results.showdown) {
+    const winning = results.hands.find((h) => h.seat === top[0]);
+    if (winning) detail.push('with ' + linkedHand(winning));
+    const yours = results.hands.find((h) => h.seat === HERO_SEAT);
+    if (yours && !heroWon) detail.push('you had ' + describeFor(yours));
+  } else if (heroWon) {
+    detail.push('everyone else folded');
+  } else {
+    detail.push(hero().folded ? 'you folded' : 'no showdown');
+  }
+
+  return { headline, net, detail: detail.join(', ') + '.' };
+}
+
+// "a pair of twos", but "two pair, nines and fives".
+const NEEDS_ARTICLE = [1, 4, 5, 6, 8];
+
+function describeFor(hand) {
+  const words = hand.description.toLowerCase();
+  return (NEEDS_ARTICLE.includes(hand.category) ? 'a ' : '') + words;
+}
+
+function linkedHand(hand) {
+  const words = hand.description.toLowerCase();
+  const article = NEEDS_ARTICLE.includes(hand.category) ? 'a ' : '';
+  return article + '[[' + handTermSlug(hand.category) + '|' + words + ']]';
 }
 
 // ----------------------------------------------------------- hero actions
@@ -371,20 +403,21 @@ function render() {
   const heroPlayer = hero();
   const reveal = [];
   const winners = t.handOver && t.results ? t.results.winners : [];
+  const nets = t.handOver && t.results ? t.results.net : null;
   if (t.handOver && t.results && t.results.showdown) {
     for (const p of t.players) if (p.hasCards && !p.folded) reveal.push(p.index);
   }
 
   ui.setHandNumber(t.handNumber);
   ui.setCoachState(state.settings.coach);
-  ui.renderSeats(t, { reveal, winners });
+  ui.renderSeats(t, { reveal, winners, nets });
   ui.renderBoard(t.board);
   ui.setPot(t.pot);
 
   const readout = heroPlayer.hasCards && !heroPlayer.folded
     ? holdingReadout(heroPlayer.hole, t.board)
     : { markup: heroPlayer.folded ? 'Folded, sitting this one out' : '' };
-  ui.renderHero(t, heroPlayer, readout);
+  ui.renderHero(t, heroPlayer, readout, nets ? nets[HERO_SEAT] : null);
 
   if (!t.handOver) {
     ui.setMessage(streetMessage(t));
@@ -396,7 +429,14 @@ function streetMessage(t) {
   const heroPlayer = hero();
   if (heroPlayer.folded) return 'You folded. Watching the rest of the hand.';
   const streetWord = t.street === 'preflop' ? '[[preflop|Before the flop]]' : capitalize(t.street);
-  return streetWord + '. You are ' + positionClause(pos) + '.';
+  const first = t.streetFirstActor;
+  const opener = first === HERO_SEAT
+    ? 'you act first'
+    : (first >= 0 ? t.players[first].name + ' acts first' : null);
+  const rest = opener
+    ? capitalize(opener) + ', you are ' + positionClause(pos)
+    : 'You are ' + positionClause(pos);
+  return streetWord + '. ' + rest + '.';
 }
 
 // "on the button", "in the cutoff", "under the gun".
