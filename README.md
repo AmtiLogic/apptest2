@@ -43,19 +43,33 @@ python3 -m http.server 8000
 Then open `http://localhost:8000`. Opening `index.html` straight off disk
 will not work, because ES modules need a real server.
 
-## Turning on GitHub Pages
+## Deploying
 
-1. Push this repository to GitHub with the files at the repository root.
-2. On GitHub, open the repository and go to **Settings**.
-3. In the left sidebar, choose **Pages**.
-4. Under **Build and deployment**, set **Source** to **Deploy from a branch**.
-5. Set the branch to **main** and the folder to **/ (root)**, then press
-   **Save**.
-6. Wait a minute or two. The page will show the address, which looks like
-   `https://<your-username>.github.io/<repository-name>/`.
+Every push to `main` publishes the site automatically. The workflow in
+`.github/workflows/deploy.yml` runs the test suite first and only deploys if
+it passes, so a broken push cannot reach the live site. It also turns Pages
+on for the repository the first time it runs, so there is nothing to switch
+on by hand.
+
+Watch a deploy on the repository's **Actions** tab. When it finishes, the
+address is shown on the deploy job and under **Settings**, then **Pages**. It
+looks like `https://<owner>.github.io/<repository-name>/`.
 
 Every path in the app is relative, so it works from a repository subpath
 without any configuration.
+
+If your account or organisation blocks Actions from managing Pages, the
+workflow will say so. In that case open **Settings**, then **Pages**, set
+**Source** to **GitHub Actions**, and re-run the job.
+
+### Updates reach installed apps on their own
+
+`sw.js` serves from the network first and falls back to its cache. That means
+an app added to the Home Screen picks up whatever was last deployed the next
+time it is opened, with no cache to clear, while still working with no
+network at all. If a new version arrives while the app is open, the page
+reloads itself once and the hand in progress is restored, so you land back in
+the same seat.
 
 ## Adding it to an iPhone Home Screen
 
@@ -68,9 +82,6 @@ without any configuration.
 Launching it from the Home Screen icon opens it fullscreen with no browser
 bar and no address bar. After the first load it works with no network at all,
 because the service worker caches every file.
-
-If you update the site later, bump `CACHE_NAME` in `sw.js` so the old cache is
-thrown away and the new files are picked up.
 
 ## The coach
 

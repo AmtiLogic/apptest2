@@ -1,8 +1,17 @@
 // sw.js
-// Caches the whole app on first load so it keeps working with no network.
-// Bump CACHE_NAME whenever the files change, which retires the old cache.
+// Keeps the app working with no network, and keeps it up to date.
+//
+// Strategy is network first with a cache fallback. When there is a working
+// connection the app always loads whatever was last deployed, so a push to
+// GitHub Pages reaches an installed Home Screen app on its next launch with
+// nothing to clear by hand. When there is no connection, or the network is
+// too slow to be useful, the cached copy is served instead.
 
-const CACHE_NAME = 'holdem-coach-v2';
+const CACHE_NAME = 'holdem-coach-v3';
+
+// How long to wait for the network before falling back to the cache. Short,
+// because every file here is small and a stale table beats a blank screen.
+const NETWORK_TIMEOUT = 3500;
 
 const ASSETS = [
   './',
@@ -39,28 +48,47 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Cache first, because none of this ever changes between deploys. Anything
-// missing falls back to the network, and a fresh copy is stored for next time.
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  event.respondWith(networkFirst(request));
+});
 
-  event.respondWith(
-    caches.match(request).then((hit) => {
-      if (hit) return hit;
-      return fetch(request).then((response) => {
-        if (response && response.status === 200 && response.type === 'basic') {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-        }
-        return response;
-      }).catch(() => {
-        // Offline and not in the cache. Navigations fall back to the shell.
-        if (request.mode === 'navigate') return caches.match('./index.html');
-        return new Response('', { status: 504, statusText: 'Offline' });
-      });
-    })
-  );
+async function networkFirst(request) {
+  const cache = await caches.open(CACHE_NAME);
+  try {
+    const response = await withTimeout(fetch(request), NETWORK_TIMEOUT);
+    if (response && response.ok && response.type === 'basic') {
+      // Store the fresh copy for the next time there is no connection.
+      cache.put(request, response.clone());
+    }
+    return response;
+  } catch (err) {
+    const hit = await cache.match(request);
+    if (hit) return hit;
+    // A cold navigation with no network and nothing cached for this exact
+    // address still gets the app shell.
+    if (request.mode === 'navigate') {
+      const shell = await cache.match('./index.html');
+      if (shell) return shell;
+    }
+    return new Response('', { status: 504, statusText: 'Offline' });
+  }
+}
+
+function withTimeout(promise, ms) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('network timeout')), ms);
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (error) => { clearTimeout(timer); reject(error); }
+    );
+  });
+}
+
+// The page asks for this when it comes back to the foreground.
+self.addEventListener('message', (event) => {
+  if (event.data === 'skip-waiting') self.skipWaiting();
 });

@@ -678,10 +678,45 @@ function showBotRead(seatIndex) {
 function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   if (location.protocol !== 'https:' && location.hostname !== 'localhost') return;
+
+  // True when a worker is already running the show, which means any change of
+  // control from here is a new version taking over rather than the first
+  // install.
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloading) return;
+    reloading = true;
+    // The hand in progress is saved on every action, so picking up the new
+    // version costs nothing: the reload lands back in the same seat.
+    saveGame();
+    location.reload();
+  });
+
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(() => {
-      // Offline support is a bonus, never a requirement.
-    });
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+      .then((registration) => {
+        // A Home Screen app is usually resumed rather than launched, so check
+        // for a new version whenever it comes back to the foreground.
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') {
+            registration.update().catch(() => {});
+          }
+        });
+        registration.addEventListener('updatefound', () => {
+          const incoming = registration.installing;
+          if (!incoming) return;
+          incoming.addEventListener('statechange', () => {
+            if (incoming.state === 'installed' && navigator.serviceWorker.controller) {
+              incoming.postMessage('skip-waiting');
+            }
+          });
+        });
+      })
+      .catch(() => {
+        // Offline support is a bonus, never a requirement.
+      });
   });
 }
 
