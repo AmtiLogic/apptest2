@@ -666,6 +666,23 @@ input[type="range"]::-moz-range-thumb {
 
 .sheet-body { margin-top: 14px; }
 
+/* The line tying a definition to the hand being played. */
+.live-note {
+  margin-bottom: 18px;
+  padding: 11px 13px;
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  border: 1px solid rgba(61, 220, 151, 0.25);
+}
+.live-note-label {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+.live-note-text { font-size: 14px; line-height: 1.45; color: var(--ink); }
+
 .sense { margin-bottom: 18px; }
 .sense-label {
   font-size: 10px;

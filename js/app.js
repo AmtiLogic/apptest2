@@ -8,7 +8,8 @@ import {
 } from './engine.js';
 import { buildSeats, botAction, personalityFor } from './bots.js';
 import { gradeAction, holdingReadout, handTermSlug, LEAKS } from './coach.js';
-import { searchTerms } from './glossary.js';
+import { searchTerms, plainText } from './glossary.js';
+import { liveNote } from './live.js';
 import * as ui from './ui.js';
 
 const STORAGE_KEY = 'holdem-coach-v1';
@@ -446,8 +447,7 @@ function openGlossary() {
         const row = ui.el('button', 'term-row');
         row.type = 'button';
         row.appendChild(ui.el('div', 'term-row-title', term.title));
-        const plain = term.senses[0].text.replace(/\[\[([^\]|]+)\|?([^\]]*)\]\]/g, (m, a, b) => b || a);
-        row.appendChild(ui.el('div', 'term-row-text', plain));
+        row.appendChild(ui.el('div', 'term-row-text', plainText(term.senses[0].text)));
         row.addEventListener('click', () => ui.openTermSheet(term.slug));
         list.appendChild(row);
       }
@@ -723,6 +723,7 @@ function registerServiceWorker() {
 function boot() {
   ui.cacheDom();
   load();
+  ui.setLiveNoteProvider((slug) => liveNote(slug, state.table, HERO_SEAT));
   wireEvents();
   buildTable();
   registerServiceWorker();

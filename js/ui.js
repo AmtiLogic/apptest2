@@ -419,6 +419,14 @@ export function renderNextHand(onNext, label) {
 
 // ------------------------------------------------------------------- sheet
 
+// Set by the app. Given a term, it returns a sentence about the hand being
+// played right now, or null when the term has nothing to say about it.
+let liveNoteFor = null;
+
+export function setLiveNoteProvider(provider) {
+  liveNoteFor = provider;
+}
+
 // Tapping a term inside a definition replaces the sheet with that term, so
 // one panel can walk through as many words as it takes.
 export function openTermSheet(slug) {
@@ -426,6 +434,19 @@ export function openTermSheet(slug) {
   if (!term) return;
   dom.sheetTitle.textContent = term.title;
   clear(dom.sheetBody);
+
+  // What this word means at your table, right now, before the general
+  // definition. This is usually the part that makes it click.
+  const live = liveNoteFor ? liveNoteFor(term.slug) : null;
+  if (live) {
+    const box = el('div', 'live-note');
+    box.appendChild(el('div', 'live-note-label', 'At your table'));
+    const body = el('div', 'live-note-text');
+    body.appendChild(renderMarkup(live));
+    box.appendChild(body);
+    dom.sheetBody.appendChild(box);
+  }
+
   for (const sense of term.senses) {
     const wrap = el('div', 'sense');
     if (sense.label) wrap.appendChild(el('div', 'sense-label', sense.label));

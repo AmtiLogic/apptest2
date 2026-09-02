@@ -12,7 +12,8 @@ import {
 } from '../js/engine.js';
 import { gradeAction, holdingReadout, expandToken, inRange, OPENING_CHARTS } from '../js/coach.js';
 import { botAction, buildSeats } from '../js/bots.js';
-import { parseMarkup, resolveSlug, TERMS } from '../js/glossary.js';
+import { parseMarkup, resolveSlug, plainText, TERMS } from '../js/glossary.js';
+import { liveNote, hasLiveNote } from '../js/live.js';
 
 let passed = 0;
 let failed = 0;
@@ -727,6 +728,18 @@ test('the readout names what the player actually has', () => {
   assert.match(holdingReadout(parseCards('8h 7c'), parseCards('9c 5d 2s')).markup, /gutshot/);
   assert.match(holdingReadout(parseCards('Qh Qc'), parseCards('9c 5d 2s')).markup, /Overpair/);
   assert.match(holdingReadout(parseCards('7h 3d'), parseCards('Kd Kh 3s')).markup, /Bottom pair/);
+  // Only call it "X high" when the X actually beats the board.
+  assert.match(holdingReadout(parseCards('Kd Qs'), parseCards('5c 9h 2d')).markup, /King high/);
+  assert.match(holdingReadout(parseCards('4d 2s'), parseCards('5c Ah Qd')).markup, /No pair/);
+  assert.match(
+    holdingReadout(parseCards('8h 7c'), parseCards('9c 6d 2s')).markup,
+    /an eight/,
+    'articles read correctly'
+  );
+  assert.ok(
+    !/ a (eight|ace)/.test(holdingReadout(parseCards('8h 7c'), parseCards('Ac Kd Qs')).markup),
+    'never "a eight"'
+  );
   assert.match(holdingReadout(parseCards('9h 9c'), parseCards('9d 8d 7c')).markup, /Three nines/);
 });
 
@@ -786,6 +799,139 @@ test('every term the coach links to exists in the glossary', () => {
   assert.ok(graded > 300, 'the fuzz run actually graded decisions, got ' + graded);
   assert.ok(verdicts.good > 0 && verdicts.fine > 0 && verdicts.mistake > 0,
     'all three verdict levels are reachable: ' + JSON.stringify(verdicts));
+});
+
+test('the live note explains a term against the hand being played', () => {
+  const t = table(6, 8);
+  startHand(t);
+  const seat = 0;
+
+  const position = liveNote('position', t, seat);
+  assert.ok(position, 'position always has something to say');
+  assert.ok(
+    /button/.test(position),
+    'the position note places you against the button: ' + position
+  );
+
+  const pot = liveNote('pot', t, seat);
+  assert.ok(pot.includes(String(t.pot)), 'the pot note quotes the real pot: ' + pot);
+
+  const blinds = liveNote('blinds', t, seat);
+  assert.ok(
+    blinds.includes(t.players[t.blindSeats.sb].name) || /you/.test(blinds),
+    'the blinds note names who posted them: ' + blinds
+  );
+
+  const bigBlind = liveNote('big-blind', t, seat);
+  assert.ok(bigBlind.includes(String(t.bigBlind)), 'the big blind note quotes the real size');
+
+  const board = liveNote('board', t, seat);
+  assert.match(board, /empty/, 'before the flop the board note says so');
+
+  // A term with nothing to say about the table returns nothing at all.
+  assert.equal(liveNote('expected-value', t, seat), null);
+  assert.equal(liveNote('not-a-real-term', t, seat), null);
+  assert.equal(liveNote('position', null, seat), null, 'no table means no note');
+});
+
+test('the button note tracks the button as it moves', () => {
+  const t = table(6, 12);
+  const seen = new Set();
+  for (let hand = 0; hand < 6; hand++) {
+    startHand(t);
+    const note = liveNote('button', t, 0);
+    assert.ok(note, 'there is always a button note');
+    const mine = t.buttonIndex === 0;
+    assert.equal(
+      /You have the button/.test(note), mine,
+      'hand ' + hand + ' with the button on seat ' + t.buttonIndex + ': ' + note
+    );
+    if (!mine) {
+      assert.ok(
+        note.includes(t.players[t.buttonIndex].name),
+        'the note names who actually has it: ' + note
+      );
+    }
+    seen.add(t.buttonIndex);
+    while (!t.handOver) applyAction(t, { type: 'fold' });
+  }
+  assert.ok(seen.size >= 5, 'the button moved around the table');
+});
+
+test('live notes stay sane through whole hands at every table size', () => {
+  const rng = makeRng(90210);
+  const slugs = Object.keys(TERMS);
+  let produced = 0;
+
+  for (const seatCount of [2, 6, 9]) {
+    const seats = buildSeats(seatCount, 'You');
+    const t = createTable({ seats, startingStack: 200, smallBlind: 1, bigBlind: 2, rng });
+
+    for (let hand = 0; hand < 40; hand++) {
+      startHand(t);
+      let steps = 0;
+      while (true) {
+        // Tap every single term at this exact point in the hand.
+        for (const slug of slugs) {
+          const note = liveNote(slug, t, 0);
+          if (note === null) continue;
+          produced += 1;
+          assert.equal(typeof note, 'string');
+          assert.ok(note.length > 10, slug + ' note is too short: ' + note);
+          assert.ok(!/[!–—]/.test(note), slug + ' note uses a dash or exclamation: ' + note);
+          assert.ok(
+            !/undefined|NaN|null|\[object/.test(note),
+            slug + ' note has a hole in it: ' + note
+          );
+          for (const token of parseMarkup(note)) {
+            if (token.type === 'term') {
+              assert.ok(TERMS[token.slug], slug + ' note links to a missing term: ' + token.slug);
+            } else {
+              assert.ok(!/\[\[/.test(token.text), slug + ' note has broken markup: ' + note);
+            }
+          }
+        }
+        if (t.handOver) break;
+        steps += 1;
+        assert.ok(steps < 500, 'no deadlock');
+        applyAction(t, botAction(t, t.toAct, rng));
+      }
+    }
+  }
+  assert.ok(produced > 20000, 'the sweep actually produced notes, got ' + produced);
+});
+
+test('every term that claims a live note can produce one mid hand', () => {
+  // Real seats, so the personality reads have somebody to point at.
+  const t = createTable({
+    seats: buildSeats(6, 'You'), startingStack: 200,
+    smallBlind: 1, bigBlind: 2, rng: makeRng(3)
+  });
+  startHand(t);
+  // Play to the river so board and draw terms have something to work with.
+  let guard = 0;
+  while (!t.handOver && t.board.length < 5 && guard++ < 200) {
+    const legal = legalActions(t);
+    applyAction(t, legal.canCheck ? { type: 'check' } : { type: 'call' });
+  }
+  const missing = Object.keys(TERMS).filter(
+    (slug) => hasLiveNote(slug) && liveNote(slug, t, 0) === null
+  );
+  // A few are genuinely situational, but most should speak up on the river.
+  assert.ok(
+    missing.length <= 6,
+    'too many live notes stayed silent on a finished board: ' + missing.join(', ')
+  );
+});
+
+test('plain text strips the markup for search and previews', () => {
+  assert.equal(plainText('a [[pot|pot]] of [[chips|chips]]'), 'a pot of chips');
+  assert.equal(plainText('no markup here'), 'no markup here');
+  for (const slug of Object.keys(TERMS)) {
+    for (const sense of TERMS[slug].senses) {
+      assert.ok(!/\[\[/.test(plainText(sense.text)), slug + ' preview is clean');
+    }
+  }
 });
 
 test('every glossary definition only leans on words that are also defined', () => {

@@ -251,11 +251,23 @@ export function classifyMade(hole, board) {
     });
   }
 
+  // "Four high" is a confusing thing to tell somebody when there is an ace on
+  // the board that everybody shares. Only call it X high when the X is
+  // actually theirs.
   const high = Math.max(holeRanks[0], holeRanks[1]);
+  const boardTop = boardRanks[0] || 0;
+  if (high > boardTop) {
+    const words = capitalize(RANK_WORDS[high]) + ' high';
+    return Object.assign(base, {
+      tier: high === 14 ? TIER.WEAK : TIER.NOTHING,
+      label: words,
+      markup: '[[high-card|' + words + ']]'
+    });
+  }
   return Object.assign(base, {
-    tier: high === 14 ? TIER.WEAK : TIER.NOTHING,
-    label: high === 14 ? 'Ace high' : RANK_WORDS[high] + ' high',
-    markup: '[[high-card|' + (high === 14 ? 'Ace high' : capitalize(RANK_WORDS[high]) + ' high') + ']]'
+    tier: TIER.NOTHING,
+    label: 'No pair',
+    markup: '[[high-card|No pair]], your best card is ' + withArticle(RANK_WORDS[high])
   });
 }
 
@@ -455,6 +467,11 @@ export const LEAKS = {
 
 function capitalize(s) {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+// "an eight", "an ace", but "a four".
+function withArticle(word) {
+  return (/^[aeiou]/i.test(word) ? 'an ' : 'a ') + word;
 }
 
 // "king three offsuit" becomes tappable without changing how it reads.
