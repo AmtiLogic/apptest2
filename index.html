@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hold'em Coach</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="description" content="Play Texas Hold'em against bots and get every decision graded as you go.">
+<meta name="theme-color" content="#0d1412">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Hold'em Coach">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+
+  <header class="topbar">
+    <div class="topbar-left">
+      <span class="hand-counter"><span class="term" data-term="hand" role="button" tabindex="0">Hand</span> <span id="hand-number">0</span></span>
+      <span id="coach-state" class="coach-state">Coach on</span>
+    </div>
+    <nav class="topbar-nav">
+      <button type="button" class="nav-btn" data-screen="glossary" aria-label="Glossary">Terms</button>
+      <button type="button" class="nav-btn" data-screen="stats" aria-label="Stats">Stats</button>
+      <button type="button" class="nav-btn" data-screen="settings" aria-label="Settings">Setup</button>
+    </nav>
+  </header>
+
+  <main class="felt">
+    <section id="opponents" class="opponents" aria-label="Opponents"></section>
+
+    <section class="middle">
+      <div id="board" class="board" aria-label="Community cards"></div>
+      <div class="pot-box">
+        <div class="pot-label"><span class="term" data-term="pot" role="button" tabindex="0">Pot</span></div>
+        <div id="pot-amount" class="pot-amount">0</div>
+      </div>
+    </section>
+
+    <div id="table-message" class="table-message" role="status"></div>
+
+    <div id="coach-banner" class="coach-banner" role="status" aria-live="polite" hidden></div>
+
+    <section class="hero-zone">
+      <div id="action-area" class="action-area"></div>
+
+      <div class="hero-bottom">
+        <div class="hero-cards-wrap">
+          <div id="hero-cards" class="hero-cards" aria-label="Your cards"></div>
+          <div id="hero-stack" class="hero-stack"></div>
+        </div>
+        <div id="hero-readout" class="hero-readout" aria-label="What you have"></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="sheet" class="sheet" hidden>
+    <div class="sheet-backdrop" data-close-sheet></div>
+    <div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+      <div class="sheet-handle"></div>
+      <div class="sheet-head">
+        <h2 id="sheet-title" class="sheet-title"></h2>
+        <button type="button" class="sheet-close" data-close-sheet aria-label="Close">Close</button>
+      </div>
+      <div id="sheet-body" class="sheet-body"></div>
+    </div>
+  </div>
+
+  <div id="screen" class="screen" hidden>
+    <div class="screen-head">
+      <h2 id="screen-title" class="screen-title"></h2>
+      <button type="button" class="screen-close" data-close-screen aria-label="Close">Done</button>
+    </div>
+    <div id="screen-body" class="screen-body"></div>
+  </div>
+
+</div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
