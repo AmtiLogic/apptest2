@@ -135,6 +135,10 @@ plays the same at every level. There is also a reset that clears all stats.
 Anyone who runs out of chips is topped back up to a full stack at the start of
 the next hand, so a practice session never ends because somebody busted.
 
+The hand you are in the middle of is saved too, so closing the app and coming
+back later puts you back in the same seat with the same cards, the same board
+and the same pot. Changing the table size or the blinds starts a clean game.
+
 Progress is kept in `localStorage` on the device, so it survives closing the
 app and is never sent anywhere.
 

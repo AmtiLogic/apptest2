@@ -2,7 +2,7 @@
 // Caches the whole app on first load so it keeps working with no network.
 // Bump CACHE_NAME whenever the files change, which retires the old cache.
 
-const CACHE_NAME = 'holdem-coach-v1';
+const CACHE_NAME = 'holdem-coach-v2';
 
 const ASSETS = [
   './',

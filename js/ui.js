@@ -64,12 +64,12 @@ export function setMarkup(node, markup) {
 export function cardEl(card, options = {}) {
   const node = el('div', 'card');
   if (options.mini) node.className = 'mini-card face';
-  if (!card) {
-    node.className = options.mini ? 'mini-card' : 'card empty';
-    return node;
-  }
   if (options.faceDown) {
     node.className = options.mini ? 'mini-card' : 'card back';
+    return node;
+  }
+  if (!card) {
+    node.className = options.mini ? 'mini-card' : 'card empty';
     return node;
   }
   if (isRed(card)) node.classList.add('red');
@@ -89,14 +89,23 @@ export function renderBoard(board) {
   clear(dom.board);
   for (let i = 0; i < 5; i++) {
     const card = board[i];
-    const justDealt = !!card && i >= lastBoardCount;
-    dom.board.appendChild(cardEl(card || null, { dealt: justDealt }));
+    if (!card) {
+      dom.board.appendChild(cardEl(null, { faceDown: true }));
+      continue;
+    }
+    dom.board.appendChild(cardEl(card, { dealt: i >= lastBoardCount }));
   }
   lastBoardCount = board.length;
 }
 
 export function resetBoardAnimation() {
   lastBoardCount = 0;
+}
+
+// Treat this many board cards as already on the table, so a restored hand
+// does not replay the deal.
+export function primeBoard(count) {
+  lastBoardCount = count;
 }
 
 // ------------------------------------------------------------------- seats
@@ -117,17 +126,30 @@ function seatEl(table, player, options) {
   if (table.toAct === player.index && !table.handOver) seat.classList.add('acting');
   if (options.winners && options.winners.includes(player.index)) seat.classList.add('winner');
 
-  const avatarWrap = el('div', 'seat-avatar-wrap');
-  avatarWrap.appendChild(el('div', 'seat-avatar', player.avatar));
-  if (table.buttonIndex === player.index) {
-    const badge = el('div', 'seat-badge', 'D');
-    badge.title = 'Dealer button';
-    avatarWrap.appendChild(badge);
-  }
-  seat.appendChild(avatarWrap);
+  seat.appendChild(el('div', 'seat-marker'));
+
+  seat.appendChild(el('div', 'seat-avatar', player.avatar));
   seat.appendChild(el('div', 'seat-name', player.name));
   seat.appendChild(el('div', 'seat-stack', player.stack));
-  seat.appendChild(el('div', 'seat-action', player.lastAction ? player.lastAction.split(' ')[0] : ''));
+
+  // Dealer button, blind marker and the last action share one row, so
+  // nothing sits on top of the avatar.
+  const meta = el('div', 'seat-meta');
+  if (table.buttonIndex === player.index) {
+    const badge = el('span', 'seat-tag dealer', 'D');
+    badge.title = 'Dealer button';
+    meta.appendChild(badge);
+  }
+  const blind = blindLabel(table, player.index);
+  if (blind) {
+    const badge = el('span', 'seat-tag blind' + (blind === 'BB' ? ' big' : ''), blind);
+    badge.title = blind === 'BB' ? 'Big blind' : 'Small blind';
+    meta.appendChild(badge);
+  }
+  if (player.lastAction) {
+    meta.appendChild(el('span', 'seat-action', player.lastAction.split(' ')[0]));
+  }
+  seat.appendChild(meta);
 
   const hole = el('div', 'seat-hole');
   if (player.hasCards && !player.folded) {
@@ -138,10 +160,20 @@ function seatEl(table, player, options) {
   }
   seat.appendChild(hole);
 
-  if (player.committed > 0) {
-    seat.appendChild(el('div', 'seat-bet', player.committed));
-  }
+  // Always present so a bet appearing does not shift the row.
+  const bet = el('div', 'seat-bet' + (player.committed > 0 ? '' : ' empty'),
+    player.committed > 0 ? player.committed : '0');
+  seat.appendChild(bet);
   return seat;
+}
+
+// "SB" or "BB" for the seat, when it posted one this hand.
+export function blindLabel(table, seatIndex) {
+  const blinds = table.blindSeats;
+  if (!blinds) return null;
+  if (blinds.bb === seatIndex) return 'BB';
+  if (blinds.sb === seatIndex) return 'SB';
+  return null;
 }
 
 // -------------------------------------------------------------------- hero
@@ -157,11 +189,20 @@ export function renderHero(table, hero, readout) {
   }
 
   clear(dom.heroStack);
+  const marks = el('div', 'hero-marks');
   if (table.buttonIndex === hero.index) {
-    const badge = el('span', 'hero-dealer', 'D');
+    const badge = el('span', 'hero-mark dealer', 'D');
     badge.title = 'You are the dealer this hand';
-    dom.heroStack.appendChild(badge);
+    marks.appendChild(badge);
   }
+  const blind = blindLabel(table, hero.index);
+  if (blind) {
+    const badge = el('span', 'hero-mark' + (blind === 'BB' ? ' big' : ''), blind);
+    badge.title = blind === 'BB' ? 'You posted the big blind' : 'You posted the small blind';
+    marks.appendChild(badge);
+  }
+  if (marks.childNodes.length) dom.heroStack.appendChild(marks);
+
   const stack = el('span', null, '');
   stack.appendChild(el('strong', null, hero.stack));
   stack.appendChild(document.createTextNode(' chips'));
@@ -216,6 +257,15 @@ export function showBanner(result) {
     node.appendChild(better);
   }
   node.scrollTop = 0;
+  updateBannerFade(node);
+  node.onscroll = () => updateBannerFade(node);
+}
+
+// Fade the bottom edge while there is more to scroll to, so a long banner on
+// a short screen reads as scrollable rather than cut off.
+function updateBannerFade(node) {
+  const more = node.scrollHeight - node.scrollTop - node.clientHeight > 4;
+  node.classList.toggle('scrolls', more);
 }
 
 export function hideBanner() {
@@ -259,7 +309,7 @@ export function renderActionRow(options) {
     raise.addEventListener('click', () => options.onRaise(quick));
     row.appendChild(raise);
 
-    const sizer = el('button', 'sizer-btn', '›');
+    const sizer = el('button', 'sizer-btn', '↑');
     sizer.type = 'button';
     sizer.setAttribute('aria-label', 'Choose a bet size');
     sizer.addEventListener('click', options.onOpenSizer);

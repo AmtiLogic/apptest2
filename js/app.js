@@ -12,6 +12,7 @@ import { searchTerms } from './glossary.js';
 import * as ui from './ui.js';
 
 const STORAGE_KEY = 'holdem-coach-v1';
+const GAME_KEY = 'holdem-coach-game-v1';
 const HERO_SEAT = 0;
 const BOT_DELAY = 620;
 const REVEAL_UNLOCK = 20;
@@ -65,6 +66,82 @@ function save() {
   }
 }
 
+// The hand in progress, so closing the app and coming back lands you in the
+// same seat with the same cards. Everything on the table is plain data apart
+// from the random number generator, which is rebuilt on load.
+const TABLE_FIELDS = [
+  'buttonIndex', 'handNumber', 'deck', 'board', 'pot', 'currentBet',
+  'lastRaiseSize', 'toAct', 'lastAggressor', 'preflopAggressor', 'street',
+  'log', 'results', 'handOver', 'blindSeats'
+];
+
+const PLAYER_FIELDS = [
+  'stack', 'hole', 'folded', 'allIn', 'committed', 'totalCommitted',
+  'acted', 'hasCards', 'lastAction', 'wonLast'
+];
+
+function saveGame() {
+  const t = state.table;
+  if (!t) return;
+  try {
+    const snapshot = { version: 1, tableSize: t.players.length, bigBlind: t.bigBlind, players: [] };
+    for (const field of TABLE_FIELDS) snapshot[field] = t[field];
+    for (const p of t.players) {
+      const row = {};
+      for (const field of PLAYER_FIELDS) row[field] = p[field];
+      snapshot.players.push(row);
+    }
+    localStorage.setItem(GAME_KEY, JSON.stringify(snapshot));
+  } catch (err) {
+    // Storage can be full or blocked. The game still plays, it just will not
+    // survive a reload.
+  }
+}
+
+function clearGame() {
+  try {
+    localStorage.removeItem(GAME_KEY);
+  } catch (err) {
+    // Nothing to do.
+  }
+}
+
+// Rebuild the table from storage. Returns false when there is nothing usable
+// saved, in which case the caller deals a fresh hand.
+function restoreGame() {
+  let snapshot;
+  try {
+    const raw = localStorage.getItem(GAME_KEY);
+    if (!raw) return false;
+    snapshot = JSON.parse(raw);
+  } catch (err) {
+    return false;
+  }
+  if (!snapshot || snapshot.version !== 1) return false;
+  if (snapshot.tableSize !== state.settings.tableSize) return false;
+  if (snapshot.bigBlind !== state.settings.bigBlind) return false;
+  if (!Array.isArray(snapshot.players) || snapshot.players.length !== state.settings.tableSize) {
+    return false;
+  }
+  if (!Array.isArray(snapshot.board) || !Array.isArray(snapshot.deck)) return false;
+
+  const t = state.table;
+  for (const field of TABLE_FIELDS) {
+    if (snapshot[field] !== undefined) t[field] = snapshot[field];
+  }
+  // Seat identities come from the current settings, never from storage, so a
+  // tampered or stale save cannot invent players.
+  for (let i = 0; i < t.players.length; i++) {
+    const saved = snapshot.players[i];
+    for (const field of PLAYER_FIELDS) {
+      if (saved[field] !== undefined) t.players[i][field] = saved[field];
+    }
+  }
+  if (typeof t.toAct !== 'number' || t.toAct >= t.players.length) t.toAct = -1;
+  ui.primeBoard(t.board.length);
+  return true;
+}
+
 // ------------------------------------------------------------------ table
 
 function buildTable() {
@@ -106,6 +183,7 @@ function dealNewHand() {
     state.stats.botHands[key] = (state.stats.botHands[key] || 0) + 1;
   }
   save();
+  saveGame();
   render();
   step();
 }
@@ -137,11 +215,11 @@ function botTurn() {
   const action = botAction(t, seat, t.rng);
   const before = t.street;
   applyAction(t, action);
+  saveGame();
   render();
   if (t.street !== before && !t.handOver) {
     // Give the new community cards a moment to land before the next action.
-    clearTimer();
-    state.timer = setTimeout(step, 420);
+    dealPause(t);
     return;
   }
   step();
@@ -162,13 +240,21 @@ function heroActs(action) {
 
   const before = t.street;
   applyAction(t, action);
+  saveGame();
   render();
   if (t.street !== before && !t.handOver) {
-    clearTimer();
-    state.timer = setTimeout(step, 420);
+    dealPause(t);
     return;
   }
   step();
+}
+
+// Hold the action area on the new street for a beat, so the buttons for the
+// street that just ended are never left sitting there.
+function dealPause(t) {
+  clearTimer();
+  ui.renderWaiting('Dealing the ' + t.street);
+  state.timer = setTimeout(step, 420);
 }
 
 function recordVerdict(verdict) {
@@ -189,6 +275,7 @@ function finishHand() {
   }
   ui.renderNextHand(dealNewHand, 'Next hand');
   save();
+  saveGame();
 }
 
 function resultText(t, results) {
@@ -308,7 +395,16 @@ function streetMessage(t) {
   const heroPlayer = hero();
   if (heroPlayer.folded) return 'You folded. Watching the rest of the hand.';
   const streetWord = t.street === 'preflop' ? '[[preflop|Before the flop]]' : capitalize(t.street);
-  return streetWord + '. You are in [[position|' + longPosition(pos) + ']].';
+  return streetWord + '. You are ' + positionClause(pos) + '.';
+}
+
+// "on the button", "in the cutoff", "under the gun".
+function positionClause(pos) {
+  const long = longPosition(pos);
+  const linked = '[[position|' + long + ']]';
+  if (pos === 'BTN') return 'on ' + linked;
+  if (long.indexOf('the ') === 0) return 'in ' + linked;
+  return linked;
 }
 
 function longPosition(pos) {
@@ -451,6 +547,7 @@ function openSettings() {
       (value) => {
         state.settings.tableSize = value;
         save();
+        clearGame();
         buildTable();
         dealNewHand();
         openSettings();
@@ -483,6 +580,7 @@ function openSettings() {
       (value) => {
         state.settings.bigBlind = value;
         save();
+        clearGame();
         buildTable();
         dealNewHand();
         openSettings();
@@ -495,6 +593,7 @@ function openSettings() {
     reset.addEventListener('click', () => {
       state.stats = JSON.parse(JSON.stringify(DEFAULT_STATS));
       save();
+      clearGame();
       buildTable();
       dealNewHand();
       openSettings();
@@ -592,7 +691,12 @@ function boot() {
   wireEvents();
   buildTable();
   registerServiceWorker();
-  dealNewHand();
+  if (restoreGame()) {
+    render();
+    step();
+  } else {
+    dealNewHand();
+  }
 }
 
 boot();

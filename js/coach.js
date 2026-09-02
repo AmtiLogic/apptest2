@@ -247,7 +247,7 @@ export function classifyMade(hole, board) {
     return Object.assign(base, {
       tier: boardHigh === 14 ? TIER.WEAK : TIER.NOTHING,
       label: RANK_WORDS[boardHigh] + ' high',
-      markup: '[[pair]] on the [[board]], you hold ' + RANK_WORDS[boardHigh] + ' high'
+      markup: '[[pair|Pair]] on the [[board]], you hold ' + RANK_WORDS[boardHigh] + ' high'
     });
   }
 
