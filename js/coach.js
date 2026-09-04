@@ -79,6 +79,13 @@ export function inRange(code, rangeText) {
 
 export const TIER = { NOTHING: 0, WEAK: 1, MEDIUM: 2, STRONG: 3, MONSTER: 4 };
 
+// Short names for the nine things a hand can be, weakest first. Used by the
+// ladder diagram, so they have to be short enough to read at a glance.
+export const CATEGORY_LADDER = [
+  'High card', 'Pair', 'Two pair', 'Three of a kind', 'Straight',
+  'Flush', 'Full house', 'Four of a kind', 'Straight flush'
+];
+
 // Which glossary term a finished hand should link to, so tapping the readout
 // explains the hand you actually have rather than a generic word.
 const TERM_FOR_CATEGORY = {
@@ -275,6 +282,19 @@ export function classifyMade(hole, board) {
  * Count the cards left in the deck that would turn this into a hand worth
  * having, and work out which kind of draw it is.
  */
+/**
+ * Outs to a percentage, the one place that decision is made.
+ *
+ * Times four is only honest when two cards are coming and no more money can
+ * go in, which means all in. Otherwise there is another betting round to
+ * survive first, so each card is counted on its own at times two.
+ */
+export function outsToEquity(outs, boardLength, callIsAllIn) {
+  const twoCards = boardLength === 3 && !!callIsAllIn;
+  const multiplier = twoCards ? 4 : 2;
+  return { multiplier, twoCards, equity: Math.min(95, outs * multiplier) };
+}
+
 export function classifyDraws(hole, board) {
   const empty = {
     outs: 0, outCards: [], flushDraw: false, backdoorFlush: false,
@@ -659,8 +679,7 @@ function gradePreflopFacingRaise(spot, action) {
 
 function drawArithmetic(spot, twoCards) {
   const outs = spot.draws.outs;
-  const multiplier = twoCards ? 4 : 2;
-  const equity = Math.min(95, outs * multiplier);
+  const { multiplier, equity } = outsToEquity(outs, spot.board.length, twoCards);
   return {
     outs,
     equity,

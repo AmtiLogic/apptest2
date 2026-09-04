@@ -9,10 +9,11 @@ export const dom = {};
 
 export function cacheDom() {
   const ids = [
-    'hand-number', 'coach-state', 'opponents', 'board', 'pot-amount',
+    'hand-number', 'opponents', 'board', 'pot-amount',
     'table-message', 'hand-result', 'coach-banner', 'action-area', 'hero-cards',
     'hero-stack', 'hero-readout', 'sheet', 'sheet-title', 'sheet-body',
-    'screen', 'screen-title', 'screen-body'
+    'screen', 'screen-title', 'screen-body',
+    'level-label', 'streak-label', 'level-fill'
   ];
   for (const id of ids) {
     dom[camel(id)] = document.getElementById(id);
@@ -245,6 +246,9 @@ export function showResult(result) {
   const node = dom.handResult;
   clear(node);
   node.hidden = false;
+  // Lets the stylesheet claw back room from the board while the scoreboard
+  // and the last grade are both on screen.
+  document.body.classList.add('showing-result');
   node.className = 'hand-result ' +
     (result.net > 0 ? 'won' : (result.net < 0 ? 'lost' : 'even'));
 
@@ -267,6 +271,7 @@ export function showResult(result) {
 export function hideResult() {
   dom.handResult.hidden = true;
   clear(dom.handResult);
+  document.body.classList.remove('showing-result');
 }
 
 export function setPot(amount) {
@@ -278,7 +283,54 @@ export function setHandNumber(n) {
 }
 
 export function setCoachState(on) {
-  dom.coachState.textContent = on ? 'Coach on' : 'Coach off';
+  // The coach toggle now shares its line with the level, so it only speaks up
+  // when it is off and the player might be wondering where the grades went.
+  dom.streakLabel.dataset.coachOff = on ? '' : 'yes';
+  refreshStreakLabel();
+}
+
+let streakValue = 0;
+
+function refreshStreakLabel() {
+  const node = dom.streakLabel;
+  if (node.dataset.coachOff === 'yes') {
+    node.textContent = 'coach off';
+    node.className = 'streak-label muted';
+    node.hidden = false;
+    return;
+  }
+  if (streakValue >= 3) {
+    node.textContent = streakValue + ' clean in a row';
+    node.className = 'streak-label';
+    node.hidden = false;
+    return;
+  }
+  node.hidden = true;
+}
+
+export function setProgress(progress) {
+  dom.levelLabel.textContent = 'Level ' + progress.level;
+  dom.levelFill.style.width =
+    Math.round((progress.intoLevel / progress.perLevel) * 100) + '%';
+  streakValue = progress.streak;
+  refreshStreakLabel();
+}
+
+/**
+ * A small reward floating up from the banner. Points are for playing well,
+ * so this fires on the decision, not on winning the pot.
+ */
+export function flashReward(reward) {
+  if (!reward || (!reward.xp && !reward.levelUp)) return;
+  const node = el('div', 'reward');
+  if (reward.levelUp) {
+    node.classList.add('level-up');
+    node.textContent = 'Level ' + reward.levelUp;
+  } else {
+    node.textContent = '+' + reward.xp;
+  }
+  dom.coachBanner.appendChild(node);
+  setTimeout(() => { if (node.parentNode) node.parentNode.removeChild(node); }, 1400);
 }
 
 export function setMessage(markup) {
@@ -301,6 +353,10 @@ export function showBanner(result) {
   const text = el('div', 'coach-text');
   text.appendChild(renderMarkup(result.text));
   node.appendChild(text);
+  if (result.diagram) {
+    const picture = renderDiagram(result.diagram);
+    if (picture) node.appendChild(picture);
+  }
   if (result.better) {
     const better = el('div', 'coach-better');
     better.appendChild(document.createTextNode('Better: '));
@@ -468,14 +524,107 @@ export function renderNextHand(onNext, label) {
   dom.actionArea.appendChild(btn);
 }
 
+// --------------------------------------------------------------- diagrams
+
+/**
+ * Turn the data from diagrams.js into a small picture. Every one of these is
+ * built from the hand actually being played.
+ */
+export function renderDiagram(data) {
+  if (!data) return null;
+  if (data.kind === 'order') return orderDiagram(data);
+  if (data.kind === 'odds') return oddsDiagram(data);
+  if (data.kind === 'outs') return outsDiagram(data);
+  if (data.kind === 'ladder') return ladderDiagram(data);
+  return null;
+}
+
+function orderDiagram(data) {
+  const box = el('div', 'dg dg-order');
+  const strip = el('div', 'dg-strip');
+  data.seats.forEach((seatData, i) => {
+    if (i > 0) strip.appendChild(el('span', 'dg-arrow', '\u203a'));
+    const chip = el('div', 'dg-seat' +
+      (seatData.isMe ? ' me' : '') +
+      (seatData.folded ? ' folded' : '') +
+      (seatData.acting ? ' acting' : ''));
+    chip.appendChild(el('span', 'dg-num', String(i + 1)));
+    chip.appendChild(el('span', 'dg-name', seatData.name));
+    // The same D badge the table uses, so it needs no explaining.
+    if (seatData.isButton) chip.appendChild(el('span', 'dg-d', 'D'));
+    strip.appendChild(chip);
+  });
+  box.appendChild(strip);
+  box.appendChild(el('div', 'dg-caption', data.caption));
+  return box;
+}
+
+function oddsDiagram(data) {
+  const box = el('div', 'dg dg-odds' + (data.good ? ' good' : ' bad'));
+  const track = el('div', 'dg-track');
+  if (data.equity !== null) {
+    const fill = el('div', 'dg-fill');
+    fill.style.width = Math.min(100, data.equity) + '%';
+    track.appendChild(fill);
+  }
+  const tick = el('div', 'dg-tick');
+  tick.style.left = Math.min(100, data.need) + '%';
+  track.appendChild(tick);
+  box.appendChild(track);
+
+  const legend = el('div', 'dg-legend');
+  legend.appendChild(el('span', 'dg-have',
+    data.equity === null ? 'no draw' : 'you get there ' + data.equity + '%'));
+  legend.appendChild(el('span', 'dg-need', 'need ' + data.need + '%'));
+  box.appendChild(legend);
+  box.appendChild(el('div', 'dg-caption',
+    'Pay ' + data.toCall + ' to win ' + data.pot + '.' +
+    (data.equity === null ? '' : (data.good ? ' Worth it.' : ' Not worth it.'))));
+  return box;
+}
+
+function outsDiagram(data) {
+  const box = el('div', 'dg dg-outs');
+  const grid = el('div', 'dg-grid');
+  for (let i = 0; i < data.unseen; i++) {
+    grid.appendChild(el('span', 'dg-card' + (i < data.outs ? ' out' : '')));
+  }
+  box.appendChild(grid);
+  box.appendChild(el('div', 'dg-caption',
+    data.outs === 0
+      ? 'None of the ' + data.unseen + ' cards left saves this hand.'
+      : data.outs + ' of the ' + data.unseen + ' cards left win it, about ' +
+        data.percent + ' percent per card.'));
+  return box;
+}
+
+function ladderDiagram(data) {
+  const box = el('div', 'dg dg-ladder');
+  // Strongest at the top, the way hand rankings are always drawn.
+  for (let i = data.rows.length - 1; i >= 0; i--) {
+    const row = data.rows[i];
+    const line = el('div', 'dg-rung' +
+      (row.current ? ' current' : '') + (row.beaten ? ' beaten' : ''));
+    line.appendChild(el('span', 'dg-rung-name', row.name));
+    if (row.current) line.appendChild(el('span', 'dg-rung-you', 'you'));
+    box.appendChild(line);
+  }
+  return box;
+}
+
 // ------------------------------------------------------------------- sheet
 
 // Set by the app. Given a term, it returns a sentence about the hand being
 // played right now, or null when the term has nothing to say about it.
 let liveNoteFor = null;
+let diagramFor = null;
 
 export function setLiveNoteProvider(provider) {
   liveNoteFor = provider;
+}
+
+export function setDiagramProvider(provider) {
+  diagramFor = provider;
 }
 
 // Tapping a term inside a definition replaces the sheet with that term, so
@@ -488,6 +637,9 @@ export function openTermSheet(slug) {
 
   // What the word means for the hand in front of you comes first and gets the
   // most weight. The general definition is the small print under it.
+  const picture = diagramFor ? renderDiagram(diagramFor(term.slug)) : null;
+  if (picture) dom.sheetBody.appendChild(picture);
+
   const live = liveNoteFor ? liveNoteFor(term.slug) : null;
   if (live) {
     const box = el('div', 'live-note');

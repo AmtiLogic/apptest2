@@ -8,7 +8,7 @@
 
 import { RANK_WORDS, RANK_WORDS_PLURAL, SUIT_NAMES } from './cards.js';
 import { positionName, POSITION_FULL_NAMES, legalActions } from './engine.js';
-import { classifyMade, classifyDraws, TIER } from './coach.js';
+import { classifyMade, classifyDraws, outsToEquity, TIER } from './coach.js';
 
 function capitalise(word) {
   return word.charAt(0).toUpperCase() + word.slice(1);
@@ -291,20 +291,20 @@ const NOTES = {
   },
 
   'rule-of-two-and-four': (c) => {
-    if (!c.draws.outs) return null;
-    const cardsToCome = c.board.length === 3 ? 2 : (c.board.length === 4 ? 1 : 0);
-    if (!cardsToCome) return null;
-    const multiplier = cardsToCome === 2 ? 4 : 2;
-    return c.draws.outs + ' outs and ' + countOf(cardsToCome, 'card') + ' to come, so ' +
-      c.draws.outs + ' times ' + multiplier + ', about ' +
-      Math.min(95, c.draws.outs * multiplier) + ' percent.';
+    if (!c.draws.outs || c.board.length > 4) return null;
+    const next = outsToEquity(c.draws.outs, c.board.length, false);
+    let line = c.draws.outs + ' outs times 2 is about ' + next.equity + ' percent on the next card.';
+    if (c.board.length === 3) {
+      const all = outsToEquity(c.draws.outs, 3, true);
+      line += ' Times 4 (' + all.equity + ' percent) only counts if you are all in.';
+    }
+    return line;
   },
 
   equity: (c) => {
-    if (!c.draws.outs || c.board.length >= 5) return null;
-    const multiplier = c.board.length === 3 ? 4 : 2;
-    return 'Rough read: ' + c.draws.outs + ' outs is about ' +
-      Math.min(95, c.draws.outs * multiplier) + ' percent to get there.';
+    if (!c.draws.outs || c.board.length > 4) return null;
+    const read = outsToEquity(c.draws.outs, c.board.length, c.toCall > 0 && c.toCall >= c.hero.stack);
+    return 'Rough read: ' + c.draws.outs + ' outs is about ' + read.equity + ' percent to get there.';
   },
 
   range: (c) => {

@@ -69,17 +69,33 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
   padding: 10px var(--pad) 12px;
 }
 
-.topbar-left { display: flex; flex-direction: column; line-height: 1.2; }
+.topbar-left { display: flex; flex-direction: column; gap: 2px; line-height: 1.2; min-width: 0; }
 .hand-counter { font-size: 14px; color: var(--ink); font-weight: 600; }
 .hand-counter .term { color: var(--ink); text-decoration-color: rgba(61, 220, 151, 0.5); }
-.coach-state {
-  font-size: 11px;
-  color: var(--ink-faint);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+
+.level-line { display: flex; align-items: baseline; gap: 7px; }
+.level-label { font-size: 11px; color: var(--ink-dim); font-weight: 600; }
+.streak-label { font-size: 10px; color: var(--accent); font-weight: 700; }
+.streak-label.muted { color: var(--ink-faint); font-weight: 500; }
+.streak-label[hidden] { display: none; }
+
+.level-track {
+  width: 96px;
+  max-width: 100%;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+.level-fill {
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.35s ease;
 }
 
-.topbar-nav { display: flex; gap: 4px; }
+.topbar-nav { display: flex; gap: 4px; flex: 0 0 auto; }
 
 .nav-btn {
   min-height: 34px;
@@ -358,6 +374,8 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
    the last decision gives up room rather than pushing the table off screen. */
 #hand-result:not([hidden]) ~ #coach-banner { max-height: 26vh; }
 
+.table-message:empty { min-height: 0; padding: 0; }
+
 .table-message {
   flex: 0 0 auto;
   min-height: 17px;
@@ -408,6 +426,34 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
 .coach-banner.mistake .coach-verdict { color: var(--mistake); background: rgba(255, 111, 97, 0.13); }
 
 .coach-text { font-size: 14px; color: var(--ink); line-height: 1.45; }
+
+/* Points floating up when a decision earns them. */
+.coach-banner { position: relative; }
+
+.reward {
+  position: absolute;
+  top: 9px;
+  right: 12px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  animation: reward-up 1.4s ease-out both;
+}
+.reward.level-up {
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--chip);
+}
+
+@keyframes reward-up {
+  0% { opacity: 0; transform: translateY(6px); }
+  18% { opacity: 1; transform: translateY(0); }
+  70% { opacity: 1; transform: translateY(-4px); }
+  100% { opacity: 0; transform: translateY(-14px); }
+}
 
 .coach-better {
   margin-top: 7px;
@@ -711,6 +757,148 @@ input[type="range"]::-moz-range-thumb {
 
 .sheet-body { margin-top: 14px; }
 
+/* ------------------------------------------------------------- diagrams */
+
+.dg { margin-bottom: 14px; }
+
+.dg-caption {
+  font-size: 12px;
+  color: var(--ink-faint);
+  line-height: 1.4;
+  margin-top: 7px;
+}
+
+/* Turn order, left to right. */
+.dg-strip {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-wrap: wrap;
+}
+
+.dg-seat {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px 5px 5px;
+  border-radius: 999px;
+  border: 1px solid var(--line-soft);
+  background: var(--surface-high);
+}
+.dg-seat.me { border-color: rgba(61, 220, 151, 0.5); background: var(--accent-soft); }
+.dg-seat.folded { opacity: 0.32; }
+.dg-seat.acting { border-color: var(--ink-dim); }
+
+.dg-num {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--line);
+  color: var(--ink-dim);
+  font-size: 10px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+.dg-seat.me .dg-num { background: var(--accent); color: #000; }
+
+/* The same dealer badge the table shows, so it reads without explaining. */
+.dg-d {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: #000;
+  font-size: 8px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.dg-name { font-size: 12px; font-weight: 600; color: var(--ink); white-space: nowrap; }
+.dg-seat.folded .dg-name { text-decoration: line-through; }
+.dg-arrow { color: var(--ink-faint); font-size: 12px; }
+
+/* The price against your chance of getting there. */
+.dg-track {
+  position: relative;
+  height: 14px;
+  border-radius: 7px;
+  background: var(--surface-high);
+  overflow: visible;
+}
+.dg-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 7px;
+  background: var(--ink-faint);
+  transition: width 0.25s ease;
+}
+.dg-odds.good .dg-fill { background: var(--good); }
+.dg-odds.bad .dg-fill { background: var(--mistake); }
+.dg-tick {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  background: var(--ink);
+  border-radius: 1px;
+}
+.dg-legend {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 6px;
+  font-size: 11px;
+}
+.dg-have { font-weight: 700; }
+.dg-odds.good .dg-have { color: var(--good); }
+.dg-odds.bad .dg-have { color: var(--mistake); }
+.dg-need { color: var(--ink-dim); }
+
+/* Every card nobody has seen, with the ones that save you filled in. */
+.dg-grid { display: flex; flex-wrap: wrap; gap: 3px; }
+.dg-card {
+  width: 11px;
+  height: 15px;
+  border-radius: 2px;
+  background: var(--surface-high);
+  border: 1px solid var(--line-soft);
+}
+.dg-card.out { background: var(--accent); border-color: var(--accent); }
+
+/* The nine things a hand can be, strongest first. */
+.dg-ladder { display: flex; flex-direction: column; gap: 1px; }
+.dg-rung {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 9px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+.dg-rung.beaten { color: var(--ink-faint); }
+.dg-rung.current {
+  background: var(--accent-soft);
+  color: var(--ink);
+  font-weight: 700;
+}
+.dg-rung-you {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+/* Inside a coach banner the picture is a supporting detail, not the point. */
+.coach-banner .dg { margin: 9px 0 0; }
+.coach-banner .dg-caption { margin-top: 5px; }
+
 /* What the word means for the hand in front of you. This is the main event,
    so it gets the size, and the general definition sits under it. */
 .live-note {
@@ -791,7 +979,18 @@ input[type="range"]::-moz-range-thumb {
   min-height: 50px;
 }
 .term-row:active { background: var(--surface-high); }
-.term-row-title { font-size: 15px; font-weight: 600; }
+.term-row-title { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 7px; }
+
+.term-new {
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: var(--accent);
+  border: 1px solid rgba(61, 220, 151, 0.4);
+  border-radius: 999px;
+  padding: 1px 5px;
+}
 .term-row-text {
   font-size: 12px;
   color: var(--ink-faint);
@@ -803,6 +1002,7 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .stat-grid { display: flex; gap: 8px; margin-bottom: 6px; }
+.stat-grid + .stat-grid { margin-top: 14px; }
 .stat-card {
   flex: 1 1 0;
   padding: 14px 8px;
@@ -819,6 +1019,15 @@ input[type="range"]::-moz-range-thumb {
   letter-spacing: -0.03em;
 }
 .stat-label { font-size: 11px; color: var(--ink-faint); margin-top: 3px; }
+
+.level-wide {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+  margin: 12px 0 8px;
+}
+.level-wide-fill { height: 100%; background: var(--accent); border-radius: 3px; }
 
 .section-title {
   font-size: 10px;
@@ -982,10 +1191,21 @@ input[type="range"]::-moz-range-thumb {
 
 .table-message { padding-top: 5px; }
   .coach-banner { max-height: 32vh; margin-top: 7px; }
-  #hand-result:not([hidden]) ~ #coach-banner { max-height: 20vh; }
+
+  /* With a scoreboard on screen the board gives up height first, then the
+     grade for the last decision, so nothing runs off the bottom. */
+  body.showing-result .middle { min-height: 48px; }
+  body.showing-result .board { max-width: 200px; }
+  /* Between hands the action row is a single Next button, so it needs less
+     breathing room than a live decision does. */
+  body.showing-result .hero-zone { padding-top: 4px; }
+  body.showing-result .action-area { margin-bottom: 8px; }
+  #hand-result:not([hidden]) ~ #coach-banner { max-height: 16vh; margin-top: 4px; }
+  .hand-result { margin-top: 5px; }
   .hand-result { margin-top: 7px; padding: 9px 12px; }
   .result-who { font-size: 16px; }
   .result-delta { font-size: 20px; }
+  .result-detail { font-size: 12px; line-height: 1.35; }
   .coach-text { font-size: 13px; }
   .hero-zone { padding: 7px 0 4px; }
   .action-area { margin-bottom: 8px; }
@@ -1004,6 +1224,27 @@ input[type="range"]::-moz-range-thumb {
   .opponents.many .seat-bet { margin-top: 2px; font-size: 9px; padding: 0 6px; }
 }
 
+/* Narrow phones. Everything in the top bar has to fit across 320px, and at
+   nine seats the seat rows have to give the coach room to be readable. */
+@media (max-width: 360px) {
+  .topbar { padding: 8px 10px 10px; gap: 6px; }
+  .nav-btn { padding: 6px 8px; font-size: 12px; }
+  .level-track { width: 72px; }
+  .felt { padding: 0 10px; }
+
+  /* Face down cards say nothing a dimmed seat does not already say. */
+  .opponents.many .seat-hole { display: none; }
+  .opponents.many .seat-avatar { font-size: 20px; }
+  .opponents.many .seat { padding: 5px 1px 0; }
+  .opponents.many .seat-name { font-size: 9px; }
+  .opponents.many .seat-stack { font-size: 11px; }
+
+  .result-who { font-size: 15px; }
+  .result-delta { font-size: 18px; }
+  .result-detail { font-size: 11px; }
+  .hand-result { padding: 8px 11px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .card.dealt, .coach-banner, .sheet-panel { animation: none; }
+  .card.dealt, .coach-banner, .sheet-panel, .reward { animation: none; }
 }

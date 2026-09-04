@@ -21,7 +21,11 @@
   <header class="topbar">
     <div class="topbar-left">
       <span class="hand-counter"><span class="term" data-term="hand" role="button" tabindex="0">Hand</span> <span id="hand-number">0</span></span>
-      <span id="coach-state" class="coach-state">Coach on</span>
+      <div class="level-line">
+        <span id="level-label" class="level-label">Level 1</span>
+        <span id="streak-label" class="streak-label" hidden></span>
+      </div>
+      <div class="level-track"><div id="level-fill" class="level-fill"></div></div>
     </div>
     <nav class="topbar-nav">
       <button type="button" class="nav-btn" data-screen="glossary" aria-label="Glossary">Terms</button>

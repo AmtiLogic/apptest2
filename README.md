@@ -102,7 +102,35 @@ odds** does the arithmetic with the real numbers. **Outs** counts yours.
 Both the notes and the definitions are length capped by the tests, so they stay
 at a glance.
 
+Some words are really pictures, and a sentence is a lossy way to store one.
+Those get a small diagram built from the hand you are in, above the words:
+
+- **Position, the button, the blinds, under the gun** draw the running order
+  for the current round, left to right, with you highlighted and the dealer
+  badge where it actually is. Preflop and postflop have different captions,
+  because the order genuinely flips.
+- **Pot odds and equity** draw one bar: how often you get there, against a
+  tick marking the price you are being offered. Green past the tick means
+  call. It is the same bar the coach shows under a banner about a price, and
+  a test asserts the two can never print different numbers.
+- **Outs and every kind of draw** draw all 47 unseen cards with yours filled
+  in. Nine out of forty seven is a very different feeling as a picture.
+- **Any hand name** draws the nine rankings with yours marked.
+
 There is also a searchable list of every term under Terms.
+
+## Points, levels and streaks
+
+Points come from decisions, never from winning chips. A bad call that happens
+to win is still a bad call, and a good fold that would have won is still a
+good fold, so luck cannot move the number. Good is 10, playable either way is
+4, a mistake is nothing. 120 points is a level.
+
+The top bar carries your level and a bar to the next one, and starts counting
+once you string three clean decisions together. A clean run survives a "fine",
+and only a mistake breaks it. Terms you have never opened are badged as new in
+the list, so eighty words become something you can work through rather than a
+wall.
 
 ## Reading the table
 

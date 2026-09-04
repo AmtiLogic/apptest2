@@ -11,11 +11,13 @@ import {
   positionName, activePlayers
 } from '../js/engine.js';
 import {
-  gradeAction, holdingReadout, expandToken, inRange, classifyDraws, OPENING_CHARTS
+  gradeAction, holdingReadout, expandToken, inRange, classifyDraws,
+  outsToEquity, OPENING_CHARTS
 } from '../js/coach.js';
 import { botAction, buildSeats } from '../js/bots.js';
 import { parseMarkup, resolveSlug, plainText, TERMS } from '../js/glossary.js';
 import { liveNote, hasLiveNote } from '../js/live.js';
+import { diagramData, oddsData, orderData, outsData, ladderData } from '../js/diagrams.js';
 
 let passed = 0;
 let failed = 0;
@@ -1021,6 +1023,166 @@ test('definitions stay to a single short line', () => {
     lengths[Math.floor(lengths.length / 2)] <= 18,
     'the typical definition is one line'
   );
+});
+
+test('times four only applies when no more money can go in', () => {
+  // Twelve outs on the flop is twenty four percent for the next card, and
+  // only forty eight when the call is all in and both cards are guaranteed.
+  assert.deepEqual(outsToEquity(12, 3, false), { multiplier: 2, twoCards: false, equity: 24 });
+  assert.deepEqual(outsToEquity(12, 3, true), { multiplier: 4, twoCards: true, equity: 48 });
+  // On the turn there is only one card left, so four never applies.
+  assert.deepEqual(outsToEquity(12, 4, true), { multiplier: 2, twoCards: false, equity: 24 });
+  assert.equal(outsToEquity(40, 3, true).equity, 95, 'capped below certainty');
+});
+
+test('the price diagram and the coach never disagree about a spot', () => {
+  const rng = makeRng(6060);
+  const seats = buildSeats(6, 'You');
+  const t = createTable({ seats, startingStack: 200, smallBlind: 1, bigBlind: 2, rng });
+  let compared = 0;
+
+  for (let hand = 0; hand < 400; hand++) {
+    startHand(t);
+    while (!t.handOver) {
+      if (t.toAct === 0) {
+        const legal = legalActions(t);
+        const action = legal.canCheck ? { type: 'check' } : { type: 'call' };
+        const picture = oddsData(t, 0);
+        if (picture && picture.equity !== null) {
+          const banner = gradeAction(t, 0, action);
+          const words = plainText(banner.text);
+          const shown = words.match(/about (\d+) percent/);
+          if (shown) {
+            assert.equal(
+              Number(shown[1]), picture.equity,
+              'the bar and the banner must show the same number: ' + words
+            );
+            compared += 1;
+          }
+          const needShown = words.match(/need (\d+) percent/);
+          if (needShown) assert.equal(Number(needShown[1]), picture.need, 'and the same price');
+        }
+        // Seeing every street produces far more spots with a draw and a bet.
+        applyAction(t, action);
+      } else {
+        applyAction(t, botAction(t, t.toAct, rng));
+      }
+    }
+  }
+  assert.ok(compared > 25, 'actually compared some spots, got ' + compared);
+});
+
+test('diagrams describe the hand that is actually being played', () => {
+  const t = table(6, 41);
+  startHand(t);
+
+  const order = orderData(t, 0);
+  assert.equal(order.seats.length, 6);
+  assert.ok(order.seats[0].isFirst, 'the first seat listed is the one that opens');
+  assert.equal(
+    t.players.findIndex((p) => p.index === t.streetFirstActor),
+    t.streetFirstActor, 'sanity'
+  );
+  assert.equal(
+    order.seats.filter((s) => s.isButton).length, 1,
+    'exactly one seat carries the button'
+  );
+  assert.equal(order.seats.filter((s) => s.isMe).length, 1);
+  assert.match(order.caption, /before the flop/);
+
+  // Preflop there is no board, so board pictures stay away.
+  assert.equal(outsData(t, 0), null);
+  assert.equal(ladderData(t, 0), null);
+
+  // Deal a flop and they appear.
+  t.board = parseCards('Kh 9h 2c');
+  t.street = 'flop';
+  t.players[0].hole = parseCards('Ah 5h');
+  const outs = outsData(t, 0);
+  assert.equal(outs.outs, 12);
+  assert.equal(outs.unseen, 47, 'fifty two less your two and the three on the board');
+  const ladder = ladderData(t, 0);
+  assert.equal(ladder.rows.length, 9);
+  assert.equal(ladder.rows.filter((r) => r.current).length, 1);
+  assert.equal(ladder.rows[ladder.current].current, true);
+
+  assert.equal(diagramData('not-a-term', t, 0), null);
+  assert.equal(diagramData('position', null, 0), null);
+});
+
+test('a diagram exists for the words that are really pictures', () => {
+  const t = table(6, 17);
+  startHand(t);
+  t.board = parseCards('Kh 9h 2c');
+  t.street = 'flop';
+  t.players[0].hole = parseCards('Ah 5h');
+  t.currentBet = 8;
+  t.pot = 24;
+  t.players[3].committed = 8;
+
+  // The words that cost the most to hold in your head as sentences.
+  for (const slug of ['position', 'button', 'blinds', 'under-the-gun']) {
+    const picture = diagramData(slug, t, 0);
+    assert.ok(picture, slug + ' should show the table order');
+    assert.equal(picture.kind, 'order');
+  }
+  for (const slug of ['outs', 'flush-draw', 'gutshot']) {
+    assert.equal(diagramData(slug, t, 0).kind, 'outs', slug + ' should count cards');
+  }
+  for (const slug of ['pot-odds', 'equity']) {
+    assert.equal(diagramData(slug, t, 0).kind, 'odds', slug + ' should show the price');
+  }
+  for (const slug of ['flush', 'two-pair', 'straight']) {
+    assert.equal(diagramData(slug, t, 0).kind, 'ladder', slug + ' should show the ranking');
+  }
+});
+
+test('diagram data never goes out of range at any table size', () => {
+  const rng = makeRng(5150);
+  const slugs = Object.keys(TERMS);
+  let drawn = 0;
+
+  for (const seatCount of [2, 6, 9]) {
+    const t = createTable({
+      seats: buildSeats(seatCount, 'You'), startingStack: 200,
+      smallBlind: 1, bigBlind: 2, rng
+    });
+    for (let hand = 0; hand < 25; hand++) {
+      startHand(t);
+      while (true) {
+        for (const slug of slugs) {
+          const picture = diagramData(slug, t, 0);
+          if (!picture) continue;
+          drawn += 1;
+          if (picture.kind === 'order') {
+            assert.ok(picture.seats.length >= 1 && picture.seats.length <= seatCount);
+            assert.equal(picture.seats.filter((x) => x.isMe).length, 1, 'exactly one is you');
+            assert.ok(picture.seats.filter((x) => x.isButton).length <= 1);
+            assert.equal(picture.seats[0].isFirst, true, 'the list starts with whoever opens');
+          }
+          if (picture.kind === 'odds') {
+            assert.ok(picture.need >= 0 && picture.need <= 100, 'price is a percentage');
+            if (picture.equity !== null) {
+              assert.ok(picture.equity > 0 && picture.equity <= 95);
+              assert.equal(picture.good, picture.equity >= picture.need);
+            }
+          }
+          if (picture.kind === 'outs') {
+            assert.ok(picture.outs >= 0 && picture.outs <= picture.unseen);
+            assert.ok(picture.unseen === 47 || picture.unseen === 46);
+          }
+          if (picture.kind === 'ladder') {
+            assert.equal(picture.rows.length, 9);
+            assert.ok(picture.current >= 0 && picture.current <= 8);
+            assert.equal(picture.rows.filter((r) => r.current).length, 1);
+          }
+        }
+        if (t.handOver) break;
+        applyAction(t, botAction(t, t.toAct, rng));
+      }
+    }
+  }
+  assert.ok(drawn > 5000, 'the sweep drew plenty of pictures, got ' + drawn);
 });
 
 test('plain text strips the markup for search and previews', () => {

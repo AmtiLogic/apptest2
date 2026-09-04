@@ -8,8 +8,9 @@ import {
 } from './engine.js';
 import { buildSeats, botAction, personalityFor } from './bots.js';
 import { gradeAction, holdingReadout, handTermSlug, LEAKS } from './coach.js';
-import { searchTerms, plainText } from './glossary.js';
+import { searchTerms, allTerms, plainText } from './glossary.js';
 import { liveNote } from './live.js';
+import { diagramData, oddsData } from './diagrams.js';
 import * as ui from './ui.js';
 
 const STORAGE_KEY = 'holdem-coach-v1';
@@ -19,6 +20,19 @@ const BOT_DELAY = 620;
 const REVEAL_UNLOCK = 20;
 
 const DEFAULT_SETTINGS = { tableSize: 6, coach: true, bigBlind: 2 };
+
+// Points reward playing well, never winning chips. A bad call that wins the
+// pot is still a bad call, and a good fold that would have won is still a
+// good fold, so luck must not move this number.
+const XP_FOR = { good: 10, fine: 4, mistake: 0 };
+const XP_PER_LEVEL = 120;
+
+const DEFAULT_PROGRESS = {
+  xp: 0,
+  streak: 0,
+  bestStreak: 0,
+  termsSeen: {}
+};
 
 const DEFAULT_STATS = {
   handsPlayed: 0,
@@ -33,6 +47,7 @@ const DEFAULT_STATS = {
 const state = {
   settings: Object.assign({}, DEFAULT_SETTINGS),
   stats: Object.assign({}, DEFAULT_STATS),
+  progress: JSON.parse(JSON.stringify(DEFAULT_PROGRESS)),
   table: null,
   timer: null,
   sizerOpen: false
@@ -51,6 +66,10 @@ function load() {
       state.stats.leaks = Object.assign({}, saved.stats.leaks || {});
       state.stats.botHands = Object.assign({}, saved.stats.botHands || {});
     }
+    if (saved && saved.progress) {
+      Object.assign(state.progress, DEFAULT_PROGRESS, saved.progress);
+      state.progress.termsSeen = Object.assign({}, saved.progress.termsSeen || {});
+    }
   } catch (err) {
     // A broken or blocked store just means a fresh start.
   }
@@ -60,7 +79,8 @@ function save() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       settings: state.settings,
-      stats: state.stats
+      stats: state.stats,
+      progress: state.progress
     }));
   } catch (err) {
     // Private browsing can refuse writes. The game still works.
@@ -235,8 +255,13 @@ function heroActs(action) {
   if (state.settings.coach) {
     const verdict = gradeAction(t, HERO_SEAT, action);
     if (verdict) {
+      // When the decision turned on a price, draw the price.
+      if (/[[]pot-odds/.test(verdict.text) || /[[]outs/.test(verdict.text)) {
+        verdict.diagram = oddsData(t, HERO_SEAT);
+      }
       recordVerdict(verdict);
       ui.showBanner(verdict);
+      ui.flashReward(verdict.reward);
     }
   }
 
@@ -265,7 +290,42 @@ function recordVerdict(verdict) {
   if (verdict.verdict === 'mistake' && verdict.leak) {
     state.stats.leaks[verdict.leak] = (state.stats.leaks[verdict.leak] || 0) + 1;
   }
+
+  const before = levelOf(state.progress.xp);
+  const gained = XP_FOR[verdict.verdict] || 0;
+  state.progress.xp += gained;
+
+  if (verdict.verdict === 'mistake') {
+    state.progress.streak = 0;
+  } else {
+    state.progress.streak += 1;
+    if (state.progress.streak > state.progress.bestStreak) {
+      state.progress.bestStreak = state.progress.streak;
+    }
+  }
+
+  const after = levelOf(state.progress.xp);
+  verdict.reward = {
+    xp: gained,
+    streak: state.progress.streak,
+    levelUp: after > before ? after : 0
+  };
   save();
+  renderProgress();
+}
+
+function levelOf(xp) {
+  return 1 + Math.floor(xp / XP_PER_LEVEL);
+}
+
+function renderProgress() {
+  const xp = state.progress.xp;
+  ui.setProgress({
+    level: levelOf(xp),
+    intoLevel: xp % XP_PER_LEVEL,
+    perLevel: XP_PER_LEVEL,
+    streak: state.progress.streak
+  });
 }
 
 function finishHand() {
@@ -486,9 +546,17 @@ function openGlossary() {
       for (const term of found) {
         const row = ui.el('button', 'term-row');
         row.type = 'button';
-        row.appendChild(ui.el('div', 'term-row-title', term.title));
+        const title = ui.el('div', 'term-row-title', term.title);
+        if (!state.progress.termsSeen[term.slug]) {
+          title.appendChild(ui.el('span', 'term-new', 'new'));
+        }
+        row.appendChild(title);
         row.appendChild(ui.el('div', 'term-row-text', plainText(term.senses[0].text)));
-        row.addEventListener('click', () => ui.openTermSheet(term.slug));
+        row.addEventListener('click', () => {
+        markTermSeen(term.slug);
+        ui.openTermSheet(term.slug);
+        draw(input.value);
+      });
         list.appendChild(row);
       }
     }
@@ -504,11 +572,28 @@ function openStats() {
     const graded = stats.decisions || 0;
     const pct = graded ? Math.round((stats.good / graded) * 100) : 0;
 
+    const level = levelOf(state.progress.xp);
     const grid = ui.el('div', 'stat-grid');
-    grid.appendChild(statCard(stats.handsPlayed, 'Hands played'));
-    grid.appendChild(statCard(graded, 'Decisions graded'));
+    grid.appendChild(statCard(level, 'Level'));
     grid.appendChild(statCard(pct + '%', 'Rated good'));
+    grid.appendChild(statCard(state.progress.bestStreak, 'Best clean run'));
     body.appendChild(grid);
+
+    const toNext = 120 - (state.progress.xp % 120);
+    const bar = ui.el('div', 'level-wide');
+    const fill = ui.el('div', 'level-wide-fill');
+    fill.style.width = Math.round(((120 - toNext) / 120) * 100) + '%';
+    bar.appendChild(fill);
+    body.appendChild(bar);
+    body.appendChild(ui.el('p', 'empty-note',
+      state.progress.xp + ' points. ' + toNext + ' more to level ' + (level + 1) +
+      '. Points come from decisions, not from winning pots.'));
+
+    const grid2 = ui.el('div', 'stat-grid');
+    grid2.appendChild(statCard(stats.handsPlayed, 'Hands played'));
+    grid2.appendChild(statCard(graded, 'Decisions graded'));
+    grid2.appendChild(statCard(termsSeenCount() + '/' + allTerms().length, 'Terms met'));
+    body.appendChild(grid2);
 
     body.appendChild(ui.el('div', 'section-title', 'Breakdown'));
     const breakdown = ui.el('div');
@@ -538,6 +623,10 @@ function openStats() {
       body.appendChild(botRow(player));
     }
   });
+}
+
+function termsSeenCount() {
+  return Object.keys(state.progress.termsSeen).length;
 }
 
 function statCard(value, label) {
@@ -632,7 +721,9 @@ function openSettings() {
     reset.type = 'button';
     reset.addEventListener('click', () => {
       state.stats = JSON.parse(JSON.stringify(DEFAULT_STATS));
+      state.progress = JSON.parse(JSON.stringify(DEFAULT_PROGRESS));
       save();
+      renderProgress();
       clearGame();
       buildTable();
       dealNewHand();
@@ -663,6 +754,7 @@ function wireEvents() {
   document.addEventListener('click', (event) => {
     const term = event.target.closest('[data-term]');
     if (term) {
+      markTermSeen(term.dataset.term);
       ui.openTermSheet(term.dataset.term);
       return;
     }
@@ -694,6 +786,13 @@ function wireEvents() {
       ui.openTermSheet(term.dataset.term);
     }
   });
+}
+
+function markTermSeen(slug) {
+  if (!slug) return;
+  const seen = state.progress.termsSeen;
+  seen[slug] = (seen[slug] || 0) + 1;
+  save();
 }
 
 function showBotRead(seatIndex) {
@@ -764,8 +863,10 @@ function boot() {
   ui.cacheDom();
   load();
   ui.setLiveNoteProvider((slug) => liveNote(slug, state.table, HERO_SEAT));
+  ui.setDiagramProvider((slug) => diagramData(slug, state.table, HERO_SEAT));
   wireEvents();
   buildTable();
+  renderProgress();
   registerServiceWorker();
   if (restoreGame()) {
     render();
