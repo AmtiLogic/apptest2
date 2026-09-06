@@ -310,11 +310,11 @@ const NOTES = {
   range: (c) => {
     const raiser = c.table.lastAggressor;
     if (raiser === undefined || raiser < 0 || raiser === c.seat) {
-      return 'Nobody has raised yet, so everyone left could have almost anything.';
+      return 'Nobody has raised yet, so nobody has told you anything. Every hand is still possible.';
     }
     const pos = positionName(raiser, c.table.buttonIndex, c.n);
     return c.nameOf(raiser) + ' raised from ' + (POSITION_FULL_NAMES[pos] || pos) +
-      '. Think about everything they would do that with, not one guess.';
+      ', so their range is every hand they raise from there. Not one hand, all of them.';
   },
 
   draw: (c) => {

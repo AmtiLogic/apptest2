@@ -395,10 +395,7 @@ function finishHand() {
     ui.setMessage('');
     ui.showResult(buildResult(t, t.results));
   }
-  // The next hand comes on its own. A showdown has cards to read, so it gets
-  // longer than a pot nobody contested.
-  const showdown = !!(t.results && t.results.showdown);
-  ui.renderNextHand(dealNewHand, { delay: showdown ? 3400 : 2200 });
+  ui.renderNextHand(dealNewHand);
   save();
   saveGame();
 }

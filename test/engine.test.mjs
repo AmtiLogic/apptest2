@@ -4,20 +4,20 @@
 import assert from 'node:assert/strict';
 import {
   parseCards, evaluate, compareHands, describeHand, newDeck, shuffle,
-  makeRng, CATEGORY, handCode
+  makeRng, CATEGORY, handCode, RANK_CHARS, RANK_FACES
 } from '../js/cards.js';
 import {
   createTable, startHand, legalActions, applyAction, buildPots,
-  positionName, activePlayers
+  positionName, chartPosition, activePlayers
 } from '../js/engine.js';
 import {
   gradeAction, holdingReadout, expandToken, inRange, classifyDraws,
-  outsToEquity, OPENING_CHARTS
+  outsToEquity, OPENING_CHARTS, expandRange
 } from '../js/coach.js';
 import { botAction, buildSeats } from '../js/bots.js';
 import { parseMarkup, resolveSlug, plainText, TERMS } from '../js/glossary.js';
 import { liveNote, hasLiveNote } from '../js/live.js';
-import { diagramData, oddsData, orderData, outsData, ladderData } from '../js/diagrams.js';
+import { diagramData, oddsData, orderData, outsData, ladderData, rangeData } from '../js/diagrams.js';
 
 let passed = 0;
 let failed = 0;
@@ -1109,6 +1109,79 @@ test('diagrams describe the hand that is actually being played', () => {
   assert.equal(diagramData('not-a-term', t, 0), null);
   assert.equal(diagramData('position', null, 0), null);
 });
+
+test('a ten reads as a ten on a card and stays a T in the shorthand', () => {
+  // Two separate jobs. The face is for a person, the char is what parsing,
+  // saved games and the chart tokens are built out of.
+  assert.equal(RANK_FACES[10], '10');
+  assert.equal(RANK_CHARS[10], 'T');
+  for (const rank of [2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14]) {
+    assert.equal(RANK_FACES[rank], RANK_CHARS[rank], 'only the ten differs');
+  }
+  // A code has to stay two characters per card or nothing can read it back.
+  assert.equal(handCode(parseCards('Th Td')), 'TT');
+  assert.equal(handCode(parseCards('Ah Tc')), 'ATo');
+});
+
+test('the range grid is the chart for the seat it says it is', () => {
+  const t = table(6, 23);
+  startHand(t);
+  t.players[0].hole = parseCards('Ah 7d');
+
+  const data = rangeData(t, 0);
+  assert.ok(data, 'a range is drawable before the flop');
+  assert.equal(data.kind, 'range');
+  assert.equal(data.cells.length, 169);
+  assert.deepEqual(data.ranks, ['A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3', '2']);
+
+  // Pairs down the diagonal, suited above it, offsuit below. If this is wrong
+  // the picture teaches the opposite of the truth.
+  for (let i = 0; i < 13; i++) {
+    for (let j = 0; j < 13; j++) {
+      const cell = data.cells[i * 13 + j];
+      const want = i === j ? 'pair' : (i < j ? 'suited' : 'offsuit');
+      assert.equal(cell.kind, want, 'cell ' + i + ',' + j + ' is in the wrong half');
+    }
+  }
+
+  // Every lit square has to be a square the coach would really open.
+  const chart = OPENING_CHARTS[chartPosition(positionName(0, t.buttonIndex, 6))];
+  for (const cell of data.cells) {
+    assert.equal(cell.inRange, inRange(cell.code, chart), cell.code + ' disagrees with the chart');
+  }
+  assert.ok(data.percent > 0 && data.percent < 100);
+
+  // The one square that is yours is the hand you are holding.
+  const marked = data.cells.filter((c) => c.mine);
+  assert.equal(marked.length, 1);
+  assert.equal(marked[0].code, 'A7o');
+});
+
+test('the range grid shows the raiser rather than you once somebody raises', () => {
+  const t = table(6, 31);
+  startHand(t);
+  t.players[0].hole = parseCards('Ah 7d');
+  const raiser = (t.buttonIndex + 1) % 6;
+  t.lastAggressor = raiser;
+
+  const data = rangeData(t, 0);
+  assert.equal(data.isMine, false);
+  assert.equal(data.who, t.players[raiser].name);
+  assert.equal(
+    data.percent,
+    Math.round(rangeCombos(OPENING_CHARTS[chartPosition(positionName(raiser, t.buttonIndex, 6))]) / 1326 * 100)
+  );
+});
+
+// Pairs are six ways to be dealt, suited four, offsuit twelve. A percentage
+// that counts squares instead of deals would be badly wrong.
+function rangeCombos(chart) {
+  let total = 0;
+  for (const code of expandRange(chart)) {
+    total += code.length === 2 ? 6 : (code.endsWith('s') ? 4 : 12);
+  }
+  return total;
+}
 
 test('a diagram exists for the words that are really pictures', () => {
   const t = table(6, 17);

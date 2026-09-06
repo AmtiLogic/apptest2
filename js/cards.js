@@ -5,10 +5,18 @@
 export const RANKS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
 export const SUITS = ['s', 'h', 'd', 'c'];
 
+// The machine notation. One character per rank, so a card is always two
+// characters, which is what parsing, saved games and the chart shorthand
+// (A8s+, T9o) all rely on. Not what a card shows you.
 export const RANK_CHARS = {
   2: '2', 3: '3', 4: '4', 5: '5', 6: '6', 7: '7', 8: '8',
   9: '9', 10: 'T', 11: 'J', 12: 'Q', 13: 'K', 14: 'A'
 };
+
+// What is printed on a card. A ten is a ten: nobody outside poker notation
+// reads T as ten, and this is the one place a beginner should not have to
+// translate anything.
+export const RANK_FACES = Object.assign({}, RANK_CHARS, { 10: '10' });
 
 export const RANK_WORDS = {
   2: 'two', 3: 'three', 4: 'four', 5: 'five', 6: 'six', 7: 'seven', 8: 'eight',

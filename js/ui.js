@@ -2,7 +2,7 @@
 // All DOM rendering. Nothing in here decides anything about poker, it just
 // draws whatever the app hands it.
 
-import { RANK_CHARS, SUIT_SYMBOLS, isRed, cardToString } from './cards.js';
+import { RANK_FACES, SUIT_SYMBOLS, isRed, cardToString } from './cards.js';
 import { parseMarkup, getTerm } from './glossary.js';
 
 export const dom = {};
@@ -118,11 +118,15 @@ export function cardEl(card, options = {}) {
   }
   if (isRed(card)) node.classList.add('red');
   if (options.mini) {
-    node.textContent = RANK_CHARS[card.rank] + SUIT_SYMBOLS[card.suit];
+    node.textContent = RANK_FACES[card.rank] + SUIT_SYMBOLS[card.suit];
+    // A ten is two glyphs where every other rank is one, and these boxes are
+    // twelve pixels wide.
+    if (card.rank === 10) node.classList.add('ten');
     return node;
   }
-  node.appendChild(el('span', 'rank', RANK_CHARS[card.rank]));
+  node.appendChild(el('span', 'rank', RANK_FACES[card.rank]));
   node.appendChild(el('span', 'suit', SUIT_SYMBOLS[card.suit]));
+  node.classList.toggle('ten', card.rank === 10);
   return node;
 }
 
@@ -150,9 +154,10 @@ function buildBoardSlots() {
 }
 
 function paintFace(slot, card) {
-  slot.front.firstChild.textContent = RANK_CHARS[card.rank];
+  slot.front.firstChild.textContent = RANK_FACES[card.rank];
   slot.front.lastChild.textContent = SUIT_SYMBOLS[card.suit];
   slot.front.classList.toggle('red', isRed(card));
+  slot.front.classList.toggle('ten', card.rank === 10);
 }
 
 export function renderBoard(board) {
@@ -904,97 +909,13 @@ export function renderWaiting(text, onSkip) {
   dom.actionArea.appendChild(row);
 }
 
-// ------------------------------------------------------- rolling on
-
-let autoAdvance = null;
-
-/**
- * The hand is over. Rather than parking on a button and waiting to be asked,
- * the next hand comes on its own after a beat, with the wait drawn on the
- * button so it is a countdown you can see and not a surprise. Touching
- * anything on the way past deals immediately.
- *
- * options: { delay }
- */
-export function renderNextHand(onNext, options) {
+export function renderNextHand(onNext) {
   setFoldGesture(false);
-  cancelAutoAdvance();
   clear(dom.actionArea);
-  const btn = el('button', 'next-btn', '');
+  const btn = el('button', 'next-btn', 'Next hand');
   btn.type = 'button';
-  const fill = el('span', 'next-fill');
-  const label = el('span', 'next-label', 'Next hand');
-  btn.appendChild(fill);
-  btn.appendChild(label);
-
-  // The button still deals after the countdown has been called off, so
-  // reading a definition and then tapping does what tapping should do.
-  let spent = false;
-  const go = () => {
-    if (spent) return;
-    spent = true;
-    if (autoAdvance && autoAdvance.node === btn) cancelAutoAdvance();
-    onNext();
-  };
-  btn.addEventListener('click', go);
-
+  btn.addEventListener('click', onNext);
   dom.actionArea.appendChild(btn);
-
-  const delay = options && options.delay ? options.delay : 2400;
-  autoAdvance = { timer: null, go, node: btn };
-
-  if (reducedMotion) {
-    // Asking for less motion is not asking to tap more, so the hand still
-    // comes on its own. The warning is counted in words instead of drawn as a
-    // bar, and nothing on screen moves to say it.
-    let left = Math.ceil(delay / 1000);
-    label.textContent = 'Next hand in ' + left;
-    autoAdvance.tick = setInterval(() => {
-      left -= 1;
-      if (left > 0) label.textContent = 'Next hand in ' + left;
-      else label.textContent = 'Next hand';
-    }, 1000);
-    autoAdvance.timer = setTimeout(go, delay);
-    return;
-  }
-
-  fill.style.transition = 'transform ' + delay + 'ms linear';
-  // One frame at zero first, or the transition has nothing to run from.
-  requestAnimationFrame(() => {
-    if (autoAdvance && autoAdvance.node === btn) fill.style.transform = 'scaleX(1)';
-  });
-  autoAdvance.timer = setTimeout(go, delay);
-  // Anywhere on the table skips the wait, so the loop never needs a precise tap.
-  autoAdvance.skip = (event) => {
-    const node = event.target;
-    if (node && node.closest && node.closest('.sheet, .screen, .term, .seat, .topbar')) return;
-    go();
-  };
-  document.addEventListener('pointerdown', autoAdvance.skip, true);
-}
-
-/**
- * Stop the clock without dealing. Used whenever the player has opened
- * something to read, because a hand landing mid sentence is the fastest way
- * to make a coach feel like an interruption.
- */
-export function cancelAutoAdvance() {
-  if (!autoAdvance) return;
-  if (autoAdvance.timer) clearTimeout(autoAdvance.timer);
-  if (autoAdvance.tick) clearInterval(autoAdvance.tick);
-  const label = autoAdvance.node ? autoAdvance.node.querySelector('.next-label') : null;
-  if (label) label.textContent = 'Next hand';
-  if (autoAdvance.skip) document.removeEventListener('pointerdown', autoAdvance.skip, true);
-  const fill = autoAdvance.node ? autoAdvance.node.querySelector('.next-fill') : null;
-  if (fill) {
-    fill.style.transition = 'none';
-    fill.style.transform = '';
-  }
-  autoAdvance = null;
-}
-
-export function autoAdvancePending() {
-  return !!autoAdvance;
 }
 
 // --------------------------------------------------------------- diagrams
@@ -1005,11 +926,65 @@ export function autoAdvancePending() {
  */
 export function renderDiagram(data) {
   if (!data) return null;
+  if (data.kind === 'range') return rangeDiagram(data);
   if (data.kind === 'order') return orderDiagram(data);
   if (data.kind === 'odds') return oddsDiagram(data);
   if (data.kind === 'outs') return outsDiagram(data);
   if (data.kind === 'ladder') return ladderDiagram(data);
   return null;
+}
+
+/**
+ * The grid every poker chart is drawn on. Thirteen ranks across and down:
+ * pairs run the diagonal, suited hands sit above it, offsuit below. A range
+ * is a shape on this grid, and seeing the shape is the whole point, so the
+ * squares are not labelled. The headers say which column is which and the
+ * one square that is yours is called out under it.
+ */
+function rangeDiagram(data) {
+  const box = el('div', 'dg dg-range');
+
+  const who = el('div', 'dg-range-head');
+  who.appendChild(el('strong', null, data.isMine ? 'Hands you open' : data.who + ' could have'));
+  who.appendChild(el('span', 'dg-range-pct', data.percent + '%'));
+  box.appendChild(who);
+
+  const grid = el('div', 'dg-chart');
+  // A blank corner, then the rank across the top of each column.
+  grid.appendChild(el('div', 'dg-gh corner'));
+  for (const rank of data.ranks) grid.appendChild(el('div', 'dg-gh', rank));
+  for (let i = 0; i < data.ranks.length; i++) {
+    grid.appendChild(el('div', 'dg-gh', data.ranks[i]));
+    for (let j = 0; j < data.ranks.length; j++) {
+      const cell = data.cells[i * data.ranks.length + j];
+      const node = el('div', 'dg-cell' +
+        (cell.inRange ? ' in' : '') +
+        (cell.kind === 'pair' ? ' pair' : '') +
+        (cell.mine ? ' mine' : ''));
+      node.title = cell.code;
+      grid.appendChild(node);
+    }
+  }
+  box.appendChild(grid);
+
+  const key = el('div', 'dg-range-key');
+  key.appendChild(el('span', null,
+    'Read a square off the two ranks: row and column. Pairs run corner to corner, same suit sits above them, mixed suits below.'));
+  box.appendChild(key);
+
+  if (data.mineWords) {
+    const mine = el('div', 'dg-range-mine' + (data.mineInRange ? ' in' : ''));
+    mine.appendChild(el('span', 'dg-range-dot'));
+    mine.appendChild(document.createTextNode(
+      'Yours is ' + data.mineWords + ', the ringed square. ' +
+      (data.isMine
+        ? (data.mineInRange ? 'It is in.' : 'It is not in, so it goes in the muck.')
+        : (data.mineInRange ? 'They play it too.' : 'They would not play it.'))));
+    box.appendChild(mine);
+  }
+
+  box.appendChild(el('div', 'dg-caption', data.caption));
+  return box;
 }
 
 function orderDiagram(data) {
@@ -1114,8 +1089,6 @@ export function setDiagramProvider(provider) {
 export function openTermSheet(slug) {
   const term = getTerm(slug);
   if (!term) return;
-  // Reading is not a reason to lose the hand you were about to be dealt.
-  cancelAutoAdvance();
   dom.sheetTitle.textContent = term.title;
   clear(dom.sheetBody);
 
@@ -1155,7 +1128,6 @@ export function openTermSheet(slug) {
  * read on a player at the table.
  */
 export function openInfoSheet(title, markup, extra) {
-  cancelAutoAdvance();
   dom.sheetTitle.textContent = title;
   clear(dom.sheetBody);
   const wrap = el('div', 'sense');
@@ -1186,7 +1158,6 @@ export function sheetIsOpen() {
 // ------------------------------------------------------------------ screen
 
 export function openScreen(title, build) {
-  cancelAutoAdvance();
   dom.screenTitle.textContent = title;
   clear(dom.screenBody);
   build(dom.screenBody);

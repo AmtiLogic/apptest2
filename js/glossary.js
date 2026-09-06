@@ -403,8 +403,16 @@ export const TERMS = {
     title: 'Range',
     senses: [
       {
-        text: 'Every [[hand]] somebody could have, thought about as a group. Guessing one exact hand is a waste of time.',
-        example: 'A raise from the first seat is mostly big pairs and big cards.'
+        text: 'All the [[hand|hands]] somebody could be holding, counted as one group instead of guessed at one at a time.',
+        example: 'You cannot know they have ace king. You can know they raise with about forty hands, and ace king is one of them.'
+      },
+      {
+        label: 'Why it is a group',
+        text: 'Unless there is a [[showdown]] you never find out what they had, so one guess is wrong nearly every time. A group can be right.'
+      },
+      {
+        label: 'Your own range',
+        text: 'You have one too: the hands you would play this way from this seat. Playing everything the same from every seat is what makes you readable.'
       }
     ]
   },

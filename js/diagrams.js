@@ -6,8 +6,12 @@
 // This module works out WHAT to draw from the live hand and returns plain
 // data. Drawing it is ui.js's job, so this file stays testable without a DOM.
 
-import { positionName } from './engine.js';
-import { classifyMade, classifyDraws, outsToEquity, CATEGORY_LADDER } from './coach.js';
+import { positionName, chartPosition, POSITION_FULL_NAMES } from './engine.js';
+import { handCode, handWords, RANKS, RANK_CHARS, RANK_FACES } from './cards.js';
+import {
+  classifyMade, classifyDraws, outsToEquity, CATEGORY_LADDER,
+  OPENING_CHARTS, expandRange
+} from './coach.js';
 
 // Which picture helps which word.
 const ORDER_TERMS = [
@@ -22,6 +26,10 @@ const OUTS_TERMS = [
   'outs', 'draw', 'flush-draw', 'open-ended-straight-draw', 'gutshot',
   'rule-of-two-and-four', 'backdoor-draw', 'semi-bluff'
 ];
+
+// A range is a set of hands, and a set of hands is a picture. This is the
+// only one of these that is worth drawing at full size.
+const RANGE_TERMS = ['range', 'tight', 'loose', 'open', 'steal'];
 
 const LADDER_TERMS = [
   'hand', 'pair', 'two-pair', 'three-of-a-kind', 'straight', 'flush',
@@ -141,11 +149,88 @@ export function ladderData(table, seat) {
 }
 
 /**
+ * Every hand somebody plays from a seat, drawn as the grid every poker chart
+ * uses: pairs down the diagonal, suited above it, offsuit below.
+ *
+ * Whose range gets drawn matters. If somebody has raised, it is theirs,
+ * because that is the question a range actually answers: not what do I have,
+ * but what could they have. With nobody in yet it falls back to your own
+ * opening range from the seat you are sitting in.
+ */
+export function rangeData(table, seat) {
+  if (!table || !table.players) return null;
+  const hero = table.players[seat];
+  if (!hero) return null;
+  const n = table.players.length;
+
+  const raiser = table.lastAggressor;
+  const showTheirs = table.street === 'preflop' && raiser !== undefined &&
+    raiser >= 0 && raiser !== seat && table.players[raiser];
+  const owner = showTheirs ? raiser : seat;
+
+  const chart = chartPosition(positionName(owner, table.buttonIndex, n));
+  const text = OPENING_CHARTS[chart];
+  // The big blind opens nothing: everyone has already acted by the time it is
+  // their turn, so there is no opening range to draw.
+  if (!text) return null;
+  const set = expandRange(text);
+
+  // Highest first, the way every chart is drawn.
+  const order = RANKS.slice().sort((a, b) => b - a);
+  const cells = [];
+  let combos = 0;
+  const mine = hero.hole && hero.hole.length === 2 ? handCode(hero.hole) : null;
+
+  for (let i = 0; i < order.length; i++) {
+    for (let j = 0; j < order.length; j++) {
+      const hi = order[Math.min(i, j)];
+      const lo = order[Math.max(i, j)];
+      let code, kind, weight;
+      if (i === j) {
+        code = RANK_CHARS[order[i]] + RANK_CHARS[order[i]];
+        kind = 'pair';
+        weight = 6;
+      } else if (i < j) {
+        code = RANK_CHARS[hi] + RANK_CHARS[lo] + 's';
+        kind = 'suited';
+        weight = 4;
+      } else {
+        code = RANK_CHARS[hi] + RANK_CHARS[lo] + 'o';
+        kind = 'offsuit';
+        weight = 12;
+      }
+      const inRange = set.has(code);
+      if (inRange) combos += weight;
+      cells.push({ code, kind, inRange, mine: code === mine });
+    }
+  }
+
+  const where = POSITION_FULL_NAMES[chart] || chart;
+  const percent = Math.round((combos / 1326) * 100);
+  return {
+    kind: 'range',
+    who: showTheirs ? table.players[raiser].name : 'You',
+    isMine: !showTheirs,
+    where,
+    ranks: order.map((r) => RANK_FACES[r]),
+    cells,
+    percent,
+    mineCode: mine,
+    mineWords: hero.hole && hero.hole.length === 2 ? handWords(hero.hole) : null,
+    mineInRange: mine ? set.has(mine) : false,
+    caption: showTheirs
+      ? table.players[raiser].name + ' raised from ' + where + '. Any of the lit squares could be what they have, and no single one of them is the guess.'
+      : 'The hands worth opening from ' + where + ', which is ' + percent + ' out of every 100 you are dealt. Everything dark you throw away.'
+  };
+}
+
+/**
  * The picture for a term, or null when a sentence is already enough.
  */
 export function diagramData(slug, table, seat) {
   if (!table || !table.players || !table.players[seat]) return null;
   try {
+    if (RANGE_TERMS.includes(slug)) return rangeData(table, seat);
     if (ORDER_TERMS.includes(slug)) return orderData(table, seat);
     if (ODDS_TERMS.includes(slug)) return oddsData(table, seat);
     if (OUTS_TERMS.includes(slug)) return outsData(table, seat);
@@ -158,6 +243,7 @@ export function diagramData(slug, table, seat) {
 }
 
 export function hasDiagram(slug) {
-  return ORDER_TERMS.includes(slug) || ODDS_TERMS.includes(slug) ||
-    OUTS_TERMS.includes(slug) || LADDER_TERMS.includes(slug);
+  return RANGE_TERMS.includes(slug) || ORDER_TERMS.includes(slug) ||
+    ODDS_TERMS.includes(slug) || OUTS_TERMS.includes(slug) ||
+    LADDER_TERMS.includes(slug);
 }

@@ -105,6 +105,14 @@ at a glance.
 Some words are really pictures, and a sentence is a lossy way to store one.
 Those get a small diagram built from the hand you are in, above the words:
 
+- **Range, tight, loose, open, steal** draw the grid every poker chart uses:
+  thirteen ranks across and down, pairs corner to corner, same suit above
+  them, mixed suits below. The lit squares are the hands actually being
+  played, your own hand is ringed, and the percentage says how much of the
+  deck that is. Whose range gets drawn is the point: once somebody has
+  raised, it is theirs, because that is the question a range answers. Not
+  what do I have, but what could they have. With nobody in yet it is your
+  own opening range from the seat you are sitting in.
 - **Position, the button, the blinds, under the gun** draw the running order
   for the current round, left to right, with you highlighted and the dealer
   badge where it actually is. Preflop and postflop have different captions,
@@ -157,12 +165,8 @@ appears next to the waiting line and plays the rest of the hand out at once.
 
 ## Keeping it moving
 
-The hand does not stop and wait to be asked for the next one. When a hand
-ends, the button fills from the left and the next hand deals itself when it
-gets to the end: about two seconds normally, longer after a showdown because
-there are cards to read. Touching anywhere on the table deals straight away.
-Opening a definition or any screen stops the clock, because a hand landing
-halfway through a sentence turns the coach into an interruption.
+A finished hand waits on the **Next hand** button and nothing deals until you
+press it. The hand is yours to sit with for as long as you want to read it.
 
 Bots decide before they act, so the wait matches the decision. A fold goes by
 in a blink, a call takes a beat, a raise gets long enough to land. A round of
@@ -207,6 +211,18 @@ built once and updated in place, so transitions have a value to ease from.
 
 Everything respects `prefers-reduced-motion`. With it on, every number, card
 and panel lands in its final state immediately and nothing moves.
+
+## Ten is a ten
+
+A card face says 10, not T. There are two rank maps in `cards.js` for that
+reason. `RANK_CHARS` is the machine notation, one character per rank, which
+is what parsing, saved games and the chart tokens like `A8s+` and `T9o` are
+all built out of. `RANK_FACES` is what gets printed on a card, and the ten is
+the only rank where they differ.
+
+The shorthand keeps its T. `109s` would be unreadable, and the coach always
+writes the hand out in words first, so the code in brackets is a label rather
+than something you have to decode.
 
 ## Reading the table
 

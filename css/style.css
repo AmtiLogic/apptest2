@@ -283,6 +283,8 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
   line-height: 1;
 }
 .mini-card.face.red { color: var(--card-red); }
+/* Two glyphs where the others have one, in a box twelve pixels wide. */
+.mini-card.face.ten { font-size: 7px; letter-spacing: -0.06em; }
 
 .seat-bet {
   margin-top: 4px;
@@ -394,6 +396,9 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
 }
 .slot-face.front.red { color: var(--card-red); }
 .slot-face .rank { font-size: 21px; letter-spacing: -0.03em; }
+/* A ten is the one rank that needs to pull itself in a little. */
+.slot-face.ten .rank { letter-spacing: -0.07em; }
+.card.ten .rank { letter-spacing: -0.07em; }
 .slot-face .suit { font-size: 15px; }
 
 /* Hero cards and the tiny seat cards keep the flat treatment. */
@@ -677,7 +682,6 @@ body.can-fold .action-area { margin-bottom: 30px; }
 .sizer-btn:active { background: var(--surface-high); color: var(--ink); }
 
 .next-btn {
-  position: relative;
   width: 100%;
   flex: 1 1 0;
   min-height: var(--tap);
@@ -686,22 +690,8 @@ body.can-fold .action-area { margin-bottom: 30px; }
   color: var(--accent);
   font-size: 15px;
   font-weight: 600;
-  overflow: hidden;
-  isolation: isolate;
 }
 .next-btn:active { background: var(--accent-soft); }
-
-/* The wait drawn as a bar filling the button, so the next hand arriving is
-   something you watched coming rather than something that happened to you. */
-.next-fill {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background: var(--accent-soft);
-  transform: scaleX(0);
-  transform-origin: left center;
-}
-.next-label { position: relative; }
 
 .waiting.grow { flex: 1 1 auto; }
 
@@ -1026,6 +1016,89 @@ body.folding .hero-readout { opacity: 0.4; transition: opacity 0.16s ease; }
   line-height: 1.4;
   margin-top: 7px;
 }
+
+/* The range grid. Thirteen by thirteen plus a row and column of headers,
+   sized off the sheet width so it fills it exactly on any phone. */
+.dg-range-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+.dg-range-head strong { font-size: 14px; font-weight: 600; color: var(--ink); }
+.dg-range-pct {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.dg-chart {
+  display: grid;
+  /* minmax(0, 1fr) rather than 1fr: a grid item will not shrink below its own
+     content by default, and the rank headers would push the columns wide. */
+  grid-template-columns: repeat(14, minmax(0, 1fr));
+  gap: 1px;
+}
+
+.dg-chart .dg-gh {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--ink-faint);
+  letter-spacing: -0.05em;
+  aspect-ratio: 1;
+  overflow: hidden;
+}
+.dg-chart .dg-gh.corner { visibility: hidden; }
+
+.dg-chart .dg-cell {
+  min-width: 0;
+  aspect-ratio: 1;
+  border-radius: 2px;
+  background: var(--surface-high);
+}
+.dg-chart .dg-cell.in { background: var(--accent); opacity: 0.85; }
+/* The diagonal is where the pairs live, and seeing it is what makes the two
+   halves either side of it mean anything. */
+.dg-chart .dg-cell.pair { background: #2a2a30; }
+.dg-chart .dg-cell.pair.in { background: var(--accent); opacity: 1; }
+.dg-chart .dg-cell.mine {
+  box-shadow: 0 0 0 2px var(--ink);
+  position: relative;
+  z-index: 1;
+}
+
+.dg-range-key {
+  margin-top: 9px;
+  font-size: 11px;
+  color: var(--ink-faint);
+  line-height: 1.4;
+}
+
+.dg-range-mine {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--ink-dim);
+  line-height: 1.4;
+}
+.dg-range-dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--surface-high);
+  box-shadow: 0 0 0 2px var(--ink);
+  transform: translateY(1px);
+}
+.dg-range-mine.in .dg-range-dot { background: var(--accent); }
 
 /* Turn order, left to right. */
 .dg-strip {
@@ -1527,9 +1600,6 @@ body.folding .hero-readout { opacity: 0.4; transition: opacity 0.16s ease; }
   .action-row.enter > *, .seat.acting .seat-marker, .seat.winner,
   .screen, .screen-body > *, .dg-strip.enter .dg-seat,
   .fold-hint.loud, .streak-label.bump { animation: none; }
-  .dg-fill, .slot-inner, .seat, .seat-bet, .seat-marker, .level-fill,
-  .next-fill { transition: none; }
+  .dg-fill, .slot-inner, .seat, .seat-bet, .seat-marker, .level-fill { transition: none; }
   .fold-hint.loud { opacity: 1; }
-  .next-fill { display: none; }
-  .next-btn { transition: none; }
 }
