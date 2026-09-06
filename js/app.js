@@ -11,6 +11,7 @@ import { gradeAction, holdingReadout, handTermSlug, LEAKS } from './coach.js';
 import { searchTerms, allTerms, plainText } from './glossary.js';
 import { liveNote } from './live.js';
 import { diagramData, oddsData } from './diagrams.js';
+import { buildFrames } from './replay.js';
 import * as ui from './ui.js';
 
 const STORAGE_KEY = 'holdem-coach-v1';
@@ -50,7 +51,9 @@ const state = {
   progress: JSON.parse(JSON.stringify(DEFAULT_PROGRESS)),
   table: null,
   timer: null,
-  sizerOpen: false
+  sizerOpen: false,
+  handVerdicts: [],
+  replay: null
 };
 
 // ---------------------------------------------------------------- storage
@@ -112,6 +115,8 @@ function saveGame() {
       for (const field of PLAYER_FIELDS) row[field] = p[field];
       snapshot.players.push(row);
     }
+    snapshot.handStartStacks = t.handStartStacks || null;
+    snapshot.handVerdicts = state.handVerdicts;
     localStorage.setItem(GAME_KEY, JSON.stringify(snapshot));
   } catch (err) {
     // Storage can be full or blocked. The game still plays, it just will not
@@ -159,6 +164,11 @@ function restoreGame() {
     }
   }
   if (typeof t.toAct !== 'number' || t.toAct >= t.players.length) t.toAct = -1;
+  if (Array.isArray(snapshot.handStartStacks) &&
+      snapshot.handStartStacks.length === t.players.length) {
+    t.handStartStacks = snapshot.handStartStacks;
+  }
+  state.handVerdicts = Array.isArray(snapshot.handVerdicts) ? snapshot.handVerdicts : [];
   ui.primeBoard(t.board.length);
   return true;
 }
@@ -166,6 +176,9 @@ function restoreGame() {
 // ------------------------------------------------------------------ table
 
 function buildTable() {
+  // A replay of the old table would render against a table that no longer
+  // exists once the seats or the blinds change.
+  exitReplay(true);
   const size = state.settings.tableSize;
   const bigBlind = state.settings.bigBlind;
   const seats = buildSeats(size, 'You');
@@ -183,6 +196,13 @@ function hero() {
   return state.table.players[HERO_SEAT];
 }
 
+// The table currently on screen. During a replay that is the frame being
+// looked at, so a term tapped mid replay explains that moment rather than
+// the finished hand.
+function viewTable() {
+  return state.replay ? state.replay.frames[state.replay.index].table : state.table;
+}
+
 function clearTimer() {
   if (state.timer) {
     clearTimeout(state.timer);
@@ -194,9 +214,11 @@ function clearTimer() {
 
 function dealNewHand() {
   clearTimer();
+  exitReplay(true);
   ui.hideBanner();
   ui.hideResult();
   ui.resetBoardAnimation();
+  state.handVerdicts = [];
   startHand(state.table);
   state.stats.handsPlayed += 1;
   for (const p of state.table.players) {
@@ -259,6 +281,7 @@ function heroActs(action) {
       if (/[[]pot-odds/.test(verdict.text) || /[[]outs/.test(verdict.text)) {
         verdict.diagram = oddsData(t, HERO_SEAT);
       }
+      state.handVerdicts.push({ logIndex: t.log.length, verdict });
       recordVerdict(verdict);
       ui.showBanner(verdict);
       ui.flashReward(verdict.reward);
@@ -335,7 +358,7 @@ function finishHand() {
     ui.setMessage('');
     ui.showResult(buildResult(t, t.results));
   }
-  ui.renderNextHand(dealNewHand, 'Next hand');
+  ui.renderNextHand(dealNewHand, canReplay() ? enterReplay : null);
   save();
   saveGame();
 }
@@ -389,6 +412,112 @@ function linkedHand(hand) {
   const words = hand.description.toLowerCase();
   const article = NEEDS_ARTICLE.includes(hand.category) ? 'a ' : '';
   return article + '[[' + handTermSlug(hand.category) + '|' + words + ']]';
+}
+
+// ---------------------------------------------------------------- replay
+
+const REPLAY_STEP_MS = 1500;
+
+function canReplay() {
+  const t = state.table;
+  return !!(t && t.handOver && t.handStartStacks && t.log && t.log.length > 1);
+}
+
+function enterReplay() {
+  const frames = buildFrames(state.table, state.handVerdicts, HERO_SEAT);
+  if (!frames.length) return;
+  clearTimer();
+  ui.hideResult();
+  ui.resetBoardAnimation();
+  state.replay = { frames, index: 0, playing: true, timer: null };
+  showReplayFrame();
+  scheduleReplayStep();
+}
+
+function exitReplay(quiet) {
+  if (!state.replay) return;
+  if (state.replay.timer) clearTimeout(state.replay.timer);
+  state.replay = null;
+  ui.resetBoardAnimation();
+  if (quiet) return;
+  ui.hideBanner();
+  render();
+  if (state.table.results) ui.showResult(buildResult(state.table, state.table.results));
+  ui.renderNextHand(dealNewHand, canReplay() ? enterReplay : null);
+}
+
+function showReplayFrame() {
+  const replay = state.replay;
+  if (!replay) return;
+  const frame = replay.frames[replay.index];
+  render();
+  if (frame.result && frame.table.results) {
+    ui.showResult(buildResult(frame.table, frame.table.results));
+  } else {
+    ui.hideResult();
+  }
+  ui.renderReplayBar({
+    index: replay.index,
+    total: replay.frames.length,
+    playing: replay.playing,
+    onBack: () => stepReplay(-1),
+    onForward: () => stepReplay(1),
+    onToggle: toggleReplay,
+    onExit: () => exitReplay(false)
+  });
+}
+
+function stepReplay(delta) {
+  const replay = state.replay;
+  if (!replay) return;
+  const next = replay.index + delta;
+  if (next < 0 || next >= replay.frames.length) return;
+  replay.index = next;
+  // A manual step means the viewer has taken over.
+  pauseReplay();
+  showReplayFrame();
+}
+
+function pauseReplay() {
+  const replay = state.replay;
+  if (!replay) return;
+  replay.playing = false;
+  if (replay.timer) {
+    clearTimeout(replay.timer);
+    replay.timer = null;
+  }
+}
+
+function toggleReplay() {
+  const replay = state.replay;
+  if (!replay) return;
+  if (replay.playing) {
+    pauseReplay();
+    showReplayFrame();
+    return;
+  }
+  // Restarting from the end starts over rather than doing nothing.
+  if (replay.index >= replay.frames.length - 1) replay.index = 0;
+  replay.playing = true;
+  showReplayFrame();
+  scheduleReplayStep();
+}
+
+function scheduleReplayStep() {
+  const replay = state.replay;
+  if (!replay || !replay.playing) return;
+  if (replay.timer) clearTimeout(replay.timer);
+  replay.timer = setTimeout(() => {
+    if (!state.replay || !state.replay.playing) return;
+    if (state.replay.index >= state.replay.frames.length - 1) {
+      pauseReplay();
+      showReplayFrame();
+      return;
+    }
+    state.replay.index += 1;
+    showReplayFrame();
+    scheduleReplayStep();
+  }, REPLAY_STEP_MS);
 }
 
 // ----------------------------------------------------------- hero actions
@@ -459,8 +588,9 @@ function showSizer(legal) {
 // ------------------------------------------------------------------ render
 
 function render() {
-  const t = state.table;
-  const heroPlayer = hero();
+  const frame = state.replay ? state.replay.frames[state.replay.index] : null;
+  const t = viewTable();
+  const heroPlayer = t.players[HERO_SEAT];
   const reveal = [];
   const winners = t.handOver && t.results ? t.results.winners : [];
   const nets = t.handOver && t.results ? t.results.net : null;
@@ -479,6 +609,12 @@ function render() {
     : { markup: heroPlayer.folded ? 'Folded, sitting this one out' : '' };
   ui.renderHero(t, heroPlayer, readout, nets ? nets[HERO_SEAT] : null);
 
+  if (frame) {
+    ui.setMessage(frame.caption);
+    if (frame.verdict) ui.showBanner(frame.verdict);
+    else ui.hideBanner();
+    return;
+  }
   if (!t.handOver) {
     ui.setMessage(streetMessage(t));
   }
@@ -862,8 +998,8 @@ function registerServiceWorker() {
 function boot() {
   ui.cacheDom();
   load();
-  ui.setLiveNoteProvider((slug) => liveNote(slug, state.table, HERO_SEAT));
-  ui.setDiagramProvider((slug) => diagramData(slug, state.table, HERO_SEAT));
+  ui.setLiveNoteProvider((slug) => liveNote(slug, viewTable(), HERO_SEAT));
+  ui.setDiagramProvider((slug) => diagramData(slug, viewTable(), HERO_SEAT));
   wireEvents();
   buildTable();
   renderProgress();

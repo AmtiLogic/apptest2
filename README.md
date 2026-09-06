@@ -119,6 +119,25 @@ Those get a small diagram built from the hand you are in, above the words:
 
 There is also a searchable list of every term under Terms.
 
+## Watching a hand back
+
+Every finished hand has a **Watch it back** button next to Next hand. It
+rebuilds the hand from the engine's log and steps through it on the real
+table: blinds go in, players act one at a time with the caret moving between
+them, the flop and turn and river deal out, chips move, and the showdown pays
+out at the end. A line under the board says what just happened, and on your
+own turns the grade you were given at the time comes back with it.
+
+It plays itself at a step every second and a half. Touching the arrows takes
+over and pauses it. Tapping a term mid replay explains it for the moment you
+are looking at, not for the finished hand, so you can stop on the flop and
+ask what a flush draw was worth right there.
+
+`js/replay.js` reconstructs everything from `handStartStacks` plus the log
+rather than storing a copy of the table at every step, and a test asserts
+chips are conserved at every frame and that the last frame lands on exactly
+the stacks the real hand ended with.
+
 ## Points, levels and streaks
 
 Points come from decisions, never from winning chips. A bad call that happens

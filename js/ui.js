@@ -516,12 +516,64 @@ export function renderWaiting(text) {
   dom.actionArea.appendChild(el('div', 'waiting', text || ''));
 }
 
-export function renderNextHand(onNext, label) {
+export function renderNextHand(onNext, onReplay) {
   clear(dom.actionArea);
-  const btn = el('button', 'next-btn', label || 'Next hand');
+  const row = el('div', 'action-row');
+  if (onReplay) {
+    const replay = el('button', 'act-btn', 'Watch it back');
+    replay.type = 'button';
+    replay.addEventListener('click', onReplay);
+    row.appendChild(replay);
+  }
+  const btn = el('button', 'next-btn wide', 'Next hand');
   btn.type = 'button';
   btn.addEventListener('click', onNext);
-  dom.actionArea.appendChild(btn);
+  row.appendChild(btn);
+  dom.actionArea.appendChild(row);
+}
+
+/**
+ * The controls for stepping through a finished hand. The table itself is the
+ * canvas, so this is only the transport.
+ */
+export function renderReplayBar(options) {
+  clear(dom.actionArea);
+  const bar = el('div', 'replay-bar');
+
+  const back = el('button', 'replay-btn', '\u2039');
+  back.type = 'button';
+  back.setAttribute('aria-label', 'Previous step');
+  back.disabled = options.index === 0;
+  back.addEventListener('click', options.onBack);
+  bar.appendChild(back);
+
+  const playPause = el('button', 'replay-btn play', options.playing ? '\u2016' : '\u25b6');
+  playPause.type = 'button';
+  playPause.setAttribute('aria-label', options.playing ? 'Pause' : 'Play');
+  playPause.addEventListener('click', options.onToggle);
+  bar.appendChild(playPause);
+
+  const forward = el('button', 'replay-btn', '\u203a');
+  forward.type = 'button';
+  forward.setAttribute('aria-label', 'Next step');
+  forward.disabled = options.index >= options.total - 1;
+  forward.addEventListener('click', options.onForward);
+  bar.appendChild(forward);
+
+  const dots = el('div', 'replay-steps');
+  for (let i = 0; i < options.total; i++) {
+    const dot = el('span', 'replay-dot' + (i <= options.index ? ' done' : '') +
+      (i === options.index ? ' now' : ''));
+    dots.appendChild(dot);
+  }
+  bar.appendChild(dots);
+
+  const done = el('button', 'replay-btn wide', 'Done');
+  done.type = 'button';
+  done.addEventListener('click', options.onExit);
+  bar.appendChild(done);
+
+  dom.actionArea.appendChild(bar);
 }
 
 // --------------------------------------------------------------- diagrams
@@ -564,8 +616,11 @@ function oddsDiagram(data) {
   const track = el('div', 'dg-track');
   if (data.equity !== null) {
     const fill = el('div', 'dg-fill');
-    fill.style.width = Math.min(100, data.equity) + '%';
+    const target = Math.min(100, data.equity) + '%';
+    fill.style.width = '0%';
     track.appendChild(fill);
+    // Grown on the next frame so the bar visibly reaches for the price.
+    requestAnimationFrame(() => { fill.style.width = target; });
   }
   const tick = el('div', 'dg-tick');
   tick.style.left = Math.min(100, data.need) + '%';
@@ -587,7 +642,11 @@ function outsDiagram(data) {
   const box = el('div', 'dg dg-outs');
   const grid = el('div', 'dg-grid');
   for (let i = 0; i < data.unseen; i++) {
-    grid.appendChild(el('span', 'dg-card' + (i < data.outs ? ' out' : '')));
+    const card = el('span', 'dg-card' + (i < data.outs ? ' out' : ''));
+    // The winning cards fill in one after another, so the count is felt
+    // rather than read.
+    if (i < data.outs) card.style.animationDelay = (i * 45) + 'ms';
+    grid.appendChild(card);
   }
   box.appendChild(grid);
   box.appendChild(el('div', 'dg-caption',

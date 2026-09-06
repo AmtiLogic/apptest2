@@ -18,6 +18,7 @@ import { botAction, buildSeats } from '../js/bots.js';
 import { parseMarkup, resolveSlug, plainText, TERMS } from '../js/glossary.js';
 import { liveNote, hasLiveNote } from '../js/live.js';
 import { diagramData, oddsData, orderData, outsData, ladderData } from '../js/diagrams.js';
+import { buildFrames } from '../js/replay.js';
 
 let passed = 0;
 let failed = 0;
@@ -1183,6 +1184,125 @@ test('diagram data never goes out of range at any table size', () => {
     }
   }
   assert.ok(drawn > 5000, 'the sweep drew plenty of pictures, got ' + drawn);
+});
+
+test('a finished hand can be rebuilt step by step from its log', () => {
+  const rng = makeRng(8123);
+  const seats = buildSeats(6, 'You');
+  const t = createTable({ seats, startingStack: 200, smallBlind: 1, bigBlind: 2, rng });
+  startHand(t);
+  const startStacks = t.handStartStacks.slice();
+  while (!t.handOver) {
+    const legal = legalActions(t);
+    applyAction(t, t.toAct === 0
+      ? (legal.canCheck ? { type: 'check' } : { type: 'call' })
+      : botAction(t, t.toAct, rng));
+  }
+
+  const frames = buildFrames(t, [], 0);
+  assert.ok(frames.length >= 3, 'a hand is more than a couple of steps');
+
+  // The first frame is the blinds, before anybody has acted.
+  assert.match(frames[0].caption, /[Bb]linds/);
+  assert.equal(frames[0].table.board.length, 0, 'nothing is dealt yet');
+
+  // The replay must end exactly where the real hand ended.
+  const last = frames[frames.length - 1].table;
+  assert.deepEqual(
+    last.players.map((p) => p.stack), t.players.map((p) => p.stack),
+    'every stack matches the real result'
+  );
+  assert.equal(last.pot, 0, 'the pot is paid out by the last frame');
+  assert.ok(last.handOver);
+
+  // Chips are conserved at every single step along the way.
+  for (const frame of frames) {
+    const onTable = frame.table.players.reduce((sum, p) => sum + p.stack, 0) + frame.table.pot;
+    const atStart = startStacks.reduce((a, b) => a + b, 0);
+    assert.equal(onTable, atStart, 'no chips appear or vanish mid replay: ' + frame.caption);
+    assert.ok(frame.caption && frame.caption.length > 4, 'every step says what happened');
+    assert.ok(!/undefined|NaN/.test(frame.caption), 'no holes in: ' + frame.caption);
+    assert.ok(frame.table.board.length <= t.board.length, 'the board never runs ahead');
+  }
+
+  // The board only ever grows, and only at the right moments.
+  let seen = 0;
+  for (const frame of frames) {
+    assert.ok(frame.table.board.length >= seen, 'the board never goes backwards');
+    seen = frame.table.board.length;
+  }
+});
+
+test('the replay speaks in the second person about your own actions', () => {
+  const rng = makeRng(4242);
+  const t = createTable({
+    seats: buildSeats(6, 'You'), startingStack: 200, smallBlind: 1, bigBlind: 2, rng
+  });
+  let checked = 0;
+  for (let hand = 0; hand < 40 && checked < 12; hand++) {
+    startHand(t);
+    while (!t.handOver) {
+      const legal = legalActions(t);
+      applyAction(t, t.toAct === 0
+        ? (legal.canCheck ? { type: 'check' } : { type: 'call' })
+        : botAction(t, t.toAct, rng));
+    }
+    for (const frame of buildFrames(t, [], 0)) {
+      if (!/^You /.test(frame.caption)) continue;
+      checked += 1;
+      assert.ok(
+        !/^You (folds|checks|calls|bets|raises|takes)/.test(frame.caption),
+        'your own actions read as "you fold", not "you folds": ' + frame.caption
+      );
+    }
+  }
+  assert.ok(checked > 5, 'saw some of the player\'s own steps, got ' + checked);
+});
+
+test('a replay carries the coaching that was given at the time', () => {
+  const rng = makeRng(999);
+  const t = createTable({
+    seats: buildSeats(6, 'You'), startingStack: 200, smallBlind: 1, bigBlind: 2, rng
+  });
+  startHand(t);
+  const verdicts = [];
+  while (!t.handOver) {
+    if (t.toAct === 0) {
+      const legal = legalActions(t);
+      const action = legal.canCheck ? { type: 'check' } : { type: 'call' };
+      verdicts.push({ logIndex: t.log.length, verdict: gradeAction(t, 0, action) });
+      applyAction(t, action);
+    } else {
+      applyAction(t, botAction(t, t.toAct, rng));
+    }
+  }
+  const frames = buildFrames(t, verdicts, 0);
+  const graded = frames.filter((f) => f.verdict);
+  assert.equal(graded.length, verdicts.length, 'every grade lands on a frame');
+  for (const frame of graded) {
+    assert.match(frame.caption, /^You /, 'grades attach to your own actions only');
+    assert.ok(['good', 'fine', 'mistake'].includes(frame.verdict.verdict));
+  }
+});
+
+test('the replay handles hands that end without a showdown', () => {
+  const t = table(6, 5);
+  startHand(t);
+  while (!t.handOver) applyAction(t, { type: 'fold' });
+  const frames = buildFrames(t, [], 0);
+  assert.ok(frames.length >= 2);
+  const last = frames[frames.length - 1];
+  assert.ok(last.table.handOver);
+  assert.match(last.caption, /takes/);
+  assert.deepEqual(
+    last.table.players.map((p) => p.stack), t.players.map((p) => p.stack)
+  );
+});
+
+test('a hand that never started cannot be replayed', () => {
+  const t = table(6, 9);
+  assert.deepEqual(buildFrames(t, [], 0), []);
+  assert.deepEqual(buildFrames(null, [], 0), []);
 });
 
 test('plain text strips the markup for search and previews', () => {
