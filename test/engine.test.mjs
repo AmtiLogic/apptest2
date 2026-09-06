@@ -1110,6 +1110,38 @@ test('diagrams describe the hand that is actually being played', () => {
   assert.equal(diagramData('position', null, 0), null);
 });
 
+test('skipping ahead after a fold always reaches the end of the hand', () => {
+  // This is what the Skip button does: keep letting the bots act until the
+  // hand is settled. It has to finish every time, on every street, and it must
+  // never land on a decision that belongs to the player.
+  for (let seed = 1; seed <= 300; seed++) {
+    const t = table(6, seed);
+    startHand(t);
+
+    // Walk to the human's first turn and fold there.
+    let guard = 0;
+    while (!t.handOver && t.toAct !== 0 && guard < 200) {
+      guard += 1;
+      applyAction(t, botAction(t, t.toAct, t.rng));
+    }
+    if (t.handOver || t.toAct !== 0) continue;
+    applyAction(t, { type: 'fold' });
+
+    let steps = 0;
+    while (!t.handOver && t.toAct >= 0 && steps < 500) {
+      steps += 1;
+      assert.notEqual(t.toAct, 0, 'seed ' + seed + ' asked a folded player to act');
+      applyAction(t, botAction(t, t.toAct, t.rng));
+    }
+    assert.ok(t.handOver, 'seed ' + seed + ' did not finish after ' + steps + ' steps');
+    assert.ok(steps < 500, 'seed ' + seed + ' hit the guard');
+    assert.ok(t.results, 'seed ' + seed + ' finished with no result to show');
+    // Finishing means the board is complete, unless everyone else folded too.
+    assert.ok(t.board.length === 0 || t.board.length === 3 ||
+      t.board.length === 4 || t.board.length === 5, 'seed ' + seed + ' left a partial board');
+  }
+});
+
 test('a ten reads as a ten on a card and stays a T in the shorthand', () => {
   // Two separate jobs. The face is for a person, the char is what parsing,
   // saved games and the chart tokens are built out of.

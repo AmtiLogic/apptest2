@@ -695,7 +695,9 @@ body.can-fold .action-area { margin-bottom: 30px; }
 
 .waiting.grow { flex: 1 1 auto; }
 
-.act-btn.skip { flex: 0 0 88px; color: var(--ink-dim); font-size: 13px; }
+.act-btn.skip { flex: 0 0 96px; color: var(--ink-dim); font-size: 13px; }
+/* .act-btn sets display:flex, which would win over the hidden attribute. */
+.act-btn[hidden] { display: none; }
 
 .waiting {
   min-height: var(--tap);

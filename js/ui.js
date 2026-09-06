@@ -891,22 +891,38 @@ export function renderBetSizer(options) {
   area.appendChild(box);
 }
 
+let waitingRow = null;
+
+/**
+ * The line that shows while somebody else is thinking, with the button that
+ * plays the rest of the hand out once you are no longer in it.
+ *
+ * This row is built once and then written into. Rebuilding it on every bot
+ * action made the Skip button a brand new node several times a second, so a
+ * finger already on its way down could land on one that had just been thrown
+ * away and nothing would happen.
+ */
 export function renderWaiting(text, onSkip) {
   setFoldGesture(false);
-  clear(dom.actionArea);
-  if (!onSkip) {
-    dom.actionArea.appendChild(el('div', 'waiting', text || ''));
-    return;
+  if (!waitingRow || waitingRow.row.parentNode !== dom.actionArea) {
+    clear(dom.actionArea);
+    const row = el('div', 'action-row');
+    const label = el('div', 'waiting grow', '');
+    const skip = el('button', 'act-btn skip', 'Skip hand');
+    skip.type = 'button';
+    // The handler reads the current callback rather than closing over the one
+    // that happened to be passed when the row was built.
+    skip.addEventListener('click', () => {
+      if (waitingRow && waitingRow.onSkip) waitingRow.onSkip();
+    });
+    row.appendChild(label);
+    row.appendChild(skip);
+    dom.actionArea.appendChild(row);
+    waitingRow = { row, label, skip, onSkip: null };
   }
-  // Once you are out of the hand there is nothing to decide, so there is a
-  // way to stop waiting for it.
-  const row = el('div', 'action-row');
-  row.appendChild(el('div', 'waiting grow', text || ''));
-  const skip = el('button', 'act-btn skip', 'Skip');
-  skip.type = 'button';
-  skip.addEventListener('click', onSkip);
-  row.appendChild(skip);
-  dom.actionArea.appendChild(row);
+  waitingRow.label.textContent = text || '';
+  waitingRow.onSkip = onSkip || null;
+  waitingRow.skip.hidden = !onSkip;
 }
 
 export function renderNextHand(onNext) {

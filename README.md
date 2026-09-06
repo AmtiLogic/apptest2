@@ -160,8 +160,19 @@ the ones that cost chips. Check or call sits on the left, bet or raise on the
 right at a sensible size already filled in, and the arrow beside it opens the
 slider when you want a different number.
 
-Once you have folded there is nothing left to decide, so a **Skip** button
-appears next to the waiting line and plays the rest of the hand out at once.
+Once the hand can no longer ask you anything, a **Skip hand** button sits
+next to the waiting line. One press plays out everything that is left: the
+rest of this betting round, every street after it, and the showdown, stopping
+on the result. It is offered when you have folded and when you are all in,
+which are the two states with no decision of yours left in them, so it can
+never skip past something you were meant to answer.
+
+The button is built once and written into, not rebuilt. A bot acts as often
+as three times a second, and redrawing the row each time made the button a
+brand new node under a finger already on its way down, so presses landed on
+something that had just been thrown away and nothing happened. It also stays
+up through the pause while a new street is dealt, which is where it used to
+vanish, since folding is what closes a betting round more often than not.
 
 ## Keeping it moving
 

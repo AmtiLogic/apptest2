@@ -253,9 +253,9 @@ function step() {
   const action = botAction(t, t.toAct, t.rng);
   state.pending = { seat: t.toAct, action };
   // Out of the hand means nothing left to decide, so offer a way past it.
-  ui.renderWaiting(actor.name + ' is thinking', hero().folded ? skipToEnd : null);
+  ui.renderWaiting(actor.name + ' is thinking', heroIsDoneActing() ? skipToEnd : null);
   clearTimer();
-  state.timer = setTimeout(botTurn, botDelay(action, hero().folded));
+  state.timer = setTimeout(botTurn, botDelay(action, heroIsDoneActing()));
 }
 
 // How long a bot sits on its decision. Weight follows money: giving up is
@@ -339,7 +339,10 @@ function heroActs(action) {
 // street that just ended are never left sitting there.
 function dealPause(t) {
   clearTimer();
-  ui.renderWaiting('Dealing the ' + t.street);
+  // Keep offering the skip through the pause. Folding often ends the betting
+  // round, so this is the first thing drawn after a fold, and dropping the
+  // button here took it away at the exact moment it became useful.
+  ui.renderWaiting('Dealing the ' + t.street, heroIsDoneActing() ? skipToEnd : null);
   state.timer = setTimeout(step, 560);
 }
 
@@ -452,12 +455,22 @@ function linkedHand(hand) {
 }
 
 /**
- * Play the rest of the hand out at once. Only offered once the player has
- * folded, so it can never skip a decision of theirs.
+ * True when the hand can no longer ask you anything: you folded, or you are
+ * all in with nothing left to put in. Skipping is only ever offered here, so
+ * it can never skip a decision of yours.
+ */
+function heroIsDoneActing() {
+  const me = hero();
+  return !!me && (me.folded || me.allIn || me.stack <= 0);
+}
+
+/**
+ * Play the rest of the hand out at once, every street of it, and stop on the
+ * result.
  */
 function skipToEnd() {
   const t = state.table;
-  if (!hero().folded || t.handOver) return;
+  if (!heroIsDoneActing() || t.handOver) return;
   clearTimer();
   let guard = 0;
   while (!t.handOver && t.toAct >= 0 && guard < 500) {
