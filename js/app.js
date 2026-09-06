@@ -26,11 +26,15 @@ const DEFAULT_SETTINGS = { tableSize: 6, coach: true, bigBlind: 2 };
 // good fold, so luck must not move this number.
 const XP_FOR = { good: 10, fine: 4, mistake: 0 };
 const XP_PER_LEVEL = 120;
+// Runs worth stopping on. Close enough together at the start to be reachable,
+// far enough apart later that they stay worth something.
+const STREAK_MARKS = [5, 10, 20, 35, 50, 75, 100];
 
 const DEFAULT_PROGRESS = {
   xp: 0,
   streak: 0,
   bestStreak: 0,
+  swipeFolds: 0,
   termsSeen: {}
 };
 
@@ -50,6 +54,7 @@ const state = {
   progress: JSON.parse(JSON.stringify(DEFAULT_PROGRESS)),
   table: null,
   timer: null,
+  pending: null,
   sizerOpen: false
 };
 
@@ -188,12 +193,14 @@ function clearTimer() {
     clearTimeout(state.timer);
     state.timer = null;
   }
+  state.pending = null;
 }
 
 // ------------------------------------------------------------- hand cycle
 
 function dealNewHand() {
   clearTimer();
+  state.pending = null;
   ui.hideBanner();
   ui.hideResult();
   ui.resetBoardAnimation();
@@ -240,21 +247,45 @@ function step() {
     return;
   }
   const actor = t.players[t.toAct];
+  // The bot decides now and acts in a moment. Knowing the decision first is
+  // what lets a fold go by in a blink while a raise gets room to land, so a
+  // table of folds no longer costs you three seconds of watching nothing.
+  const action = botAction(t, t.toAct, t.rng);
+  state.pending = { seat: t.toAct, action };
   // Out of the hand means nothing left to decide, so offer a way past it.
   ui.renderWaiting(actor.name + ' is thinking', hero().folded ? skipToEnd : null);
   clearTimer();
-  state.timer = setTimeout(botTurn, BOT_DELAY);
+  state.timer = setTimeout(botTurn, botDelay(action, hero().folded));
+}
+
+// How long a bot sits on its decision. Weight follows money: giving up is
+// instant, putting chips in is worth a beat.
+function botDelay(action, heroIsOut) {
+  let ms = BOT_DELAY;
+  if (action.type === 'fold') ms = 300;
+  else if (action.type === 'check') ms = 460;
+  else if (action.type === 'call') ms = 600;
+  else ms = 820;
+  // Nothing here is your decision any more, so stop making you wait on it.
+  if (heroIsOut) ms = Math.round(ms * 0.45);
+  return ms;
 }
 
 function botTurn() {
   state.timer = null;
   const t = state.table;
   if (t.handOver || t.toAct === HERO_SEAT || t.toAct < 0) {
+    state.pending = null;
     step();
     return;
   }
   const seat = t.toAct;
-  const action = botAction(t, seat, t.rng);
+  // Use the decision made when the wait started. Rolling the dice a second
+  // time here would throw the first draw away and change the deal.
+  const action = state.pending && state.pending.seat === seat
+    ? state.pending.action
+    : botAction(t, seat, t.rng);
+  state.pending = null;
   const before = t.street;
   const chips = ui.captureBets();
   applyAction(t, action);
@@ -336,7 +367,8 @@ function recordVerdict(verdict) {
   verdict.reward = {
     xp: gained,
     streak: state.progress.streak,
-    levelUp: after > before ? after : 0
+    levelUp: after > before ? after : 0,
+    milestone: STREAK_MARKS.includes(state.progress.streak) ? state.progress.streak : 0
   };
   save();
   renderProgress();
@@ -363,7 +395,10 @@ function finishHand() {
     ui.setMessage('');
     ui.showResult(buildResult(t, t.results));
   }
-  ui.renderNextHand(dealNewHand);
+  // The next hand comes on its own. A showdown has cards to read, so it gets
+  // longer than a pot nobody contested.
+  const showdown = !!(t.results && t.results.showdown);
+  ui.renderNextHand(dealNewHand, { delay: showdown ? 3400 : 2200 });
   save();
   saveGame();
 }
@@ -430,7 +465,13 @@ function skipToEnd() {
   let guard = 0;
   while (!t.handOver && t.toAct >= 0 && guard < 500) {
     guard += 1;
-    applyAction(t, botAction(t, t.toAct, t.rng));
+    // Honour a decision already made and waiting on its timer, so skipping
+    // ahead shows the same hand it was about to show.
+    const ready = state.pending && state.pending.seat === t.toAct
+      ? state.pending.action
+      : botAction(t, t.toAct, t.rng);
+    state.pending = null;
+    applyAction(t, ready);
   }
   saveGame();
   render();
@@ -476,7 +517,14 @@ function showHeroActions() {
   ui.renderActionRow({
     legal,
     quickRaiseTo: quickRaiseAmount(t, legal),
-    onFold: () => heroActs({ type: 'fold' }),
+    // Say it loudly until the gesture has been used a few times, then get out
+    // of the way.
+    teachFold: (state.progress.swipeFolds || 0) < 4,
+    onFold: () => {
+      state.progress.swipeFolds = (state.progress.swipeFolds || 0) + 1;
+      save();
+      heroActs({ type: 'fold' });
+    },
     onCheckCall: () => heroActs(legal.canCheck ? { type: 'check' } : { type: 'call' }),
     onRaise: (amount) => heroActs({ type: legal.isBet ? 'bet' : 'raise', amount }),
     onOpenSizer: () => {

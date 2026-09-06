@@ -402,6 +402,7 @@ export function dealHandout(order, heroSeat) {
 
 // How far the cards have to travel before letting go throws the hand away.
 const FOLD_DISTANCE = 66;
+const FOLD_HINT_TEXT = '\u2191 Swipe up to fold';
 
 const foldDrag = {
   enabled: false,
@@ -417,7 +418,7 @@ const foldDrag = {
  * Turned on only while folding is actually one of the choices, so the cards
  * are never draggable at a moment when throwing them away would do nothing.
  */
-export function setFoldGesture(enabled, onFold) {
+export function setFoldGesture(enabled, onFold, teach) {
   foldDrag.enabled = !!enabled;
   foldDrag.onFold = onFold || null;
   if (!foldDrag.wired) wireFoldGesture();
@@ -426,7 +427,24 @@ export function setFoldGesture(enabled, onFold) {
     clearFoldDrag();
   }
   dom.heroCards.classList.toggle('draggable', !!enabled);
-  dom.foldHint.classList.toggle('showing', !!enabled && !reducedMotion);
+  // The hint is words, not motion, so it stays on for everybody. It only gets
+  // loud until the gesture has actually been used a few times.
+  dom.foldHint.classList.toggle('showing', !!enabled);
+  dom.foldHint.classList.toggle('loud', !!enabled && !!teach);
+  // The hint sits above the cards, which is where the buttons end. Room for it
+  // is opened only while it is up, so the layout is unchanged the rest of the
+  // time and nothing has to shrink on a small screen for a label that is not
+  // there.
+  document.body.classList.toggle('can-fold', !!enabled);
+  // A swipe is not something everybody can make, so the cards themselves take
+  // focus and fold on a key press. No button comes back to do it.
+  if (enabled) {
+    dom.heroCards.setAttribute('tabindex', '0');
+    dom.heroCards.setAttribute('aria-label', 'Your cards. Swipe up or press Enter to fold.');
+  } else {
+    dom.heroCards.removeAttribute('tabindex');
+    dom.heroCards.removeAttribute('aria-label');
+  }
 }
 
 function wireFoldGesture() {
@@ -467,6 +485,13 @@ function wireFoldGesture() {
   };
   node.addEventListener('pointerup', finish);
   node.addEventListener('pointercancel', finish);
+
+  node.addEventListener('keydown', (event) => {
+    if (!foldDrag.enabled || !foldDrag.onFold) return;
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    throwHandAway();
+  });
 }
 
 function paintFoldDrag(distance) {
@@ -479,7 +504,7 @@ function paintFoldDrag(distance) {
   dom.foldHint.style.transform = 'translate3d(0, ' + (-lift) + 'px, 0)';
   dom.foldHint.style.opacity = String(Math.min(1, 0.35 + distance / FOLD_DISTANCE));
   dom.foldHint.classList.toggle('ready', ready);
-  dom.foldHint.textContent = ready ? 'Let go to fold' : 'Swipe up to fold';
+  dom.foldHint.textContent = ready ? 'Let go to fold' : FOLD_HINT_TEXT;
 }
 
 function clearFoldDrag() {
@@ -490,7 +515,7 @@ function clearFoldDrag() {
   dom.foldHint.style.transform = '';
   dom.foldHint.style.opacity = '';
   dom.foldHint.classList.remove('ready');
-  dom.foldHint.textContent = 'Swipe up to fold';
+  dom.foldHint.textContent = FOLD_HINT_TEXT;
 }
 
 // The cards carry on the way they were thrown, then the fold is played.
@@ -634,9 +659,10 @@ function refreshStreakLabel() {
     node.hidden = false;
     return;
   }
-  if (streakValue >= 3) {
+  if (streakValue >= 2) {
     node.textContent = streakValue + ' clean in a row';
-    node.className = 'streak-label';
+    // A run worth protecting should look like one.
+    node.className = 'streak-label' + (streakValue >= 5 ? ' hot' : '');
     node.hidden = false;
     return;
   }
@@ -647,8 +673,15 @@ export function setProgress(progress) {
   dom.levelLabel.textContent = 'Level ' + progress.level;
   dom.levelFill.style.width =
     Math.round((progress.intoLevel / progress.perLevel) * 100) + '%';
+  const grew = progress.streak > streakValue;
   streakValue = progress.streak;
   refreshStreakLabel();
+  if (grew && !reducedMotion && !dom.streakLabel.hidden) {
+    dom.streakLabel.classList.remove('bump');
+    // Reading the layout restarts the animation instead of skipping it.
+    void dom.streakLabel.offsetWidth;
+    dom.streakLabel.classList.add('bump');
+  }
 }
 
 /**
@@ -656,11 +689,16 @@ export function setProgress(progress) {
  * so this fires on the decision, not on winning the pot.
  */
 export function flashReward(reward) {
-  if (!reward || (!reward.xp && !reward.levelUp)) return;
+  if (!reward) return;
+  if (!reward.xp && !reward.levelUp && !reward.milestone) return;
   const node = el('div', 'reward');
   if (reward.levelUp) {
     node.classList.add('level-up');
     node.textContent = 'Level ' + reward.levelUp;
+  } else if (reward.milestone) {
+    // A run this long is the thing worth noticing, not the four points.
+    node.classList.add('milestone');
+    node.textContent = reward.milestone + ' in a row';
   } else {
     node.textContent = '+' + reward.xp;
   }
@@ -723,15 +761,14 @@ export function hideBanner() {
 export function renderActionRow(options) {
   const area = dom.actionArea;
   clear(area);
-  setFoldGesture(true, options.onFold);
+  const legal = options.legal;
+  // There is no fold button any more. Throwing the cards away is the gesture,
+  // and it is only live when folding is a real choice: giving up a free check
+  // costs you the hand for nothing, so a stray swipe must not be able to.
+  const canFold = legal.toCall > 0;
+  setFoldGesture(canFold, options.onFold, options.teachFold);
   const row = el('div', 'action-row');
   if (!reducedMotion) row.classList.add('enter');
-  const legal = options.legal;
-
-  const fold = el('button', 'act-btn fold', 'Fold');
-  fold.type = 'button';
-  fold.addEventListener('click', options.onFold);
-  row.appendChild(fold);
 
   const callBtn = el('button', 'act-btn');
   callBtn.type = 'button';
@@ -867,13 +904,97 @@ export function renderWaiting(text, onSkip) {
   dom.actionArea.appendChild(row);
 }
 
-export function renderNextHand(onNext) {
+// ------------------------------------------------------- rolling on
+
+let autoAdvance = null;
+
+/**
+ * The hand is over. Rather than parking on a button and waiting to be asked,
+ * the next hand comes on its own after a beat, with the wait drawn on the
+ * button so it is a countdown you can see and not a surprise. Touching
+ * anything on the way past deals immediately.
+ *
+ * options: { delay }
+ */
+export function renderNextHand(onNext, options) {
   setFoldGesture(false);
+  cancelAutoAdvance();
   clear(dom.actionArea);
-  const btn = el('button', 'next-btn', 'Next hand');
+  const btn = el('button', 'next-btn', '');
   btn.type = 'button';
-  btn.addEventListener('click', onNext);
+  const fill = el('span', 'next-fill');
+  const label = el('span', 'next-label', 'Next hand');
+  btn.appendChild(fill);
+  btn.appendChild(label);
+
+  // The button still deals after the countdown has been called off, so
+  // reading a definition and then tapping does what tapping should do.
+  let spent = false;
+  const go = () => {
+    if (spent) return;
+    spent = true;
+    if (autoAdvance && autoAdvance.node === btn) cancelAutoAdvance();
+    onNext();
+  };
+  btn.addEventListener('click', go);
+
   dom.actionArea.appendChild(btn);
+
+  const delay = options && options.delay ? options.delay : 2400;
+  autoAdvance = { timer: null, go, node: btn };
+
+  if (reducedMotion) {
+    // Asking for less motion is not asking to tap more, so the hand still
+    // comes on its own. The warning is counted in words instead of drawn as a
+    // bar, and nothing on screen moves to say it.
+    let left = Math.ceil(delay / 1000);
+    label.textContent = 'Next hand in ' + left;
+    autoAdvance.tick = setInterval(() => {
+      left -= 1;
+      if (left > 0) label.textContent = 'Next hand in ' + left;
+      else label.textContent = 'Next hand';
+    }, 1000);
+    autoAdvance.timer = setTimeout(go, delay);
+    return;
+  }
+
+  fill.style.transition = 'transform ' + delay + 'ms linear';
+  // One frame at zero first, or the transition has nothing to run from.
+  requestAnimationFrame(() => {
+    if (autoAdvance && autoAdvance.node === btn) fill.style.transform = 'scaleX(1)';
+  });
+  autoAdvance.timer = setTimeout(go, delay);
+  // Anywhere on the table skips the wait, so the loop never needs a precise tap.
+  autoAdvance.skip = (event) => {
+    const node = event.target;
+    if (node && node.closest && node.closest('.sheet, .screen, .term, .seat, .topbar')) return;
+    go();
+  };
+  document.addEventListener('pointerdown', autoAdvance.skip, true);
+}
+
+/**
+ * Stop the clock without dealing. Used whenever the player has opened
+ * something to read, because a hand landing mid sentence is the fastest way
+ * to make a coach feel like an interruption.
+ */
+export function cancelAutoAdvance() {
+  if (!autoAdvance) return;
+  if (autoAdvance.timer) clearTimeout(autoAdvance.timer);
+  if (autoAdvance.tick) clearInterval(autoAdvance.tick);
+  const label = autoAdvance.node ? autoAdvance.node.querySelector('.next-label') : null;
+  if (label) label.textContent = 'Next hand';
+  if (autoAdvance.skip) document.removeEventListener('pointerdown', autoAdvance.skip, true);
+  const fill = autoAdvance.node ? autoAdvance.node.querySelector('.next-fill') : null;
+  if (fill) {
+    fill.style.transition = 'none';
+    fill.style.transform = '';
+  }
+  autoAdvance = null;
+}
+
+export function autoAdvancePending() {
+  return !!autoAdvance;
 }
 
 // --------------------------------------------------------------- diagrams
@@ -993,6 +1114,8 @@ export function setDiagramProvider(provider) {
 export function openTermSheet(slug) {
   const term = getTerm(slug);
   if (!term) return;
+  // Reading is not a reason to lose the hand you were about to be dealt.
+  cancelAutoAdvance();
   dom.sheetTitle.textContent = term.title;
   clear(dom.sheetBody);
 
@@ -1027,6 +1150,31 @@ export function openTermSheet(slug) {
   dom.sheet.querySelector('.sheet-panel').scrollTop = 0;
 }
 
+/**
+ * The same panel used for anything that is not a glossary term, such as the
+ * read on a player at the table.
+ */
+export function openInfoSheet(title, markup, extra) {
+  cancelAutoAdvance();
+  dom.sheetTitle.textContent = title;
+  clear(dom.sheetBody);
+  const wrap = el('div', 'sense');
+  const text = el('div', 'sense-text');
+  text.appendChild(renderMarkup(markup));
+  wrap.appendChild(text);
+  if (extra) {
+    const example = el('div', 'sense-example');
+    example.appendChild(el('em', null, 'Note'));
+    const body = el('span');
+    body.appendChild(renderMarkup(extra));
+    example.appendChild(body);
+    wrap.appendChild(example);
+  }
+  dom.sheetBody.appendChild(wrap);
+  dom.sheet.hidden = false;
+  dom.sheet.querySelector('.sheet-panel').scrollTop = 0;
+}
+
 export function closeSheet() {
   dom.sheet.hidden = true;
 }
@@ -1038,6 +1186,7 @@ export function sheetIsOpen() {
 // ------------------------------------------------------------------ screen
 
 export function openScreen(title, build) {
+  cancelAutoAdvance();
   dom.screenTitle.textContent = title;
   clear(dom.screenBody);
   build(dom.screenBody);

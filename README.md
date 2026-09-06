@@ -138,13 +138,36 @@ Cards are dealt out from the middle one at a time, twice round the table
 starting left of the button, the way they really go. Nothing acts until they
 have landed.
 
-Your two cards can be **swiped up to fold**. Drag them and they lift and fade,
-the buttons underneath get out of the way, and the label above them turns red
-once you have gone far enough. Let go short of that and they spring back. The
-Fold button does the same thing for anybody who would rather tap.
+There is no Fold button. Folding is throwing your cards away: **swipe them
+up**. They lift and fade as you drag, the buttons underneath get out of the
+way, and the label above them turns red once you have gone far enough. Let go
+short of that and they spring back. The label says so plainly for your first
+few folds and then quietens down.
+
+The gesture is live only when there is a bet to call. Folding a free check
+gives the hand up for nothing, so a stray swipe cannot do it.
+
+That leaves two buttons where there were three, and the ones that are left are
+the ones that cost chips. Check or call sits on the left, bet or raise on the
+right at a sensible size already filled in, and the arrow beside it opens the
+slider when you want a different number.
 
 Once you have folded there is nothing left to decide, so a **Skip** button
 appears next to the waiting line and plays the rest of the hand out at once.
+
+## Keeping it moving
+
+The hand does not stop and wait to be asked for the next one. When a hand
+ends, the button fills from the left and the next hand deals itself when it
+gets to the end: about two seconds normally, longer after a showdown because
+there are cards to read. Touching anywhere on the table deals straight away.
+Opening a definition or any screen stops the clock, because a hand landing
+halfway through a sentence turns the coach into an interruption.
+
+Bots decide before they act, so the wait matches the decision. A fold goes by
+in a blink, a call takes a beat, a raise gets long enough to land. A round of
+folds used to cost three seconds of watching nothing and now costs under one.
+Once you are out of the hand every wait is cut to under half.
 
 ## Motion
 
