@@ -26,6 +26,12 @@
   --card-back: #ef5350;
 
   --pad: 14px;
+  /* Vertical rhythm. The side rail is 14px, so anything separating two
+     distinct blocks matches it or beats it, and anything inside a block
+     stays under it. Gaps smaller than the rail are what read as squished. */
+  --v-tight: 8px;
+  --v-step: 12px;
+  --v-block: 20px;
   --radius-sm: 10px;
   --radius: 14px;
   --radius-lg: 18px;
@@ -66,7 +72,7 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 10px var(--pad) 12px;
+  padding: 12px var(--pad) var(--pad);
 }
 
 .topbar-left { display: flex; flex-direction: column; gap: 2px; line-height: 1.2; min-width: 0; }
@@ -324,13 +330,19 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
 .middle {
   flex: 1 6 auto;
   min-height: 76px;
+  /* A floor under the board's breathing room. Above this the middle is the
+     elastic part of the table and absorbs whatever is left over. */
+  padding: var(--v-tight) 0;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 12px;
 }
 
-.board { display: flex; gap: 5px; flex: 1 1 auto; perspective: 1100px; }
+/* Board width drives board height through the card aspect ratio, so an
+   uncapped board on a wide phone eats the vertical budget and ends up
+   touching the seats. */
+.board { display: flex; gap: 5px; flex: 1 1 auto; max-width: 300px; perspective: 1100px; }
 
 .slot {
   flex: 1 1 0;
@@ -453,7 +465,7 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
 /* End of hand scoreboard. */
 .hand-result {
   flex: 0 0 auto;
-  margin-top: 10px;
+  margin-top: var(--v-step);
   padding: 11px 14px;
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
@@ -508,7 +520,7 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
   text-align: center;
   font-size: 12px;
   color: var(--ink-faint);
-  padding: 8px 0 0;
+  padding: var(--v-step) 0 0;
 }
 .table-message .term { color: var(--ink-dim); }
 
@@ -516,7 +528,7 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
 
 .coach-banner {
   flex: 0 1 auto;
-  margin: 10px 0 0;
+  margin: var(--v-step) 0 0;
   padding: 11px 13px;
   border-radius: var(--radius-lg);
   background: var(--surface);
@@ -609,12 +621,13 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
 
 /* --------------------------------------------------------- hero and keys */
 
-.hero-zone { flex: 0 0 auto; padding: 12px 0 10px; }
+.hero-zone { flex: 0 0 auto; padding: var(--v-block) 0 var(--pad); }
 
-.action-area { min-height: var(--tap); margin-bottom: 12px; }
-/* Clearance for the swipe hint, which lives above the cards. */
-body.can-fold .action-area { margin-bottom: 19px; }
-.action-row { display: flex; gap: 7px; align-items: stretch; }
+.action-area { min-height: var(--tap); margin-bottom: var(--pad); }
+/* Room for the swipe hint, which sits above the cards: 8px clear of the
+   buttons and 8px clear of the cards, rather than wedged between them. */
+body.can-fold .action-area { margin-bottom: 30px; }
+.action-row { display: flex; gap: 8px; align-items: stretch; }
 
 .action-row.enter > * { animation: act-in 0.34s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
 .action-row.enter > *:nth-child(2) { animation-delay: 0.045s; }
@@ -805,7 +818,7 @@ input[type="range"]::-moz-range-thumb {
   z-index: 5;
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: var(--v-tight);
   flex: 0 0 auto;
 }
 
@@ -841,7 +854,7 @@ body.folding .hero-readout { opacity: 0.4; transition: opacity 0.16s ease; }
 .fold-hint {
   position: absolute;
   z-index: 41;
-  top: -17px;
+  top: -22px;
   left: 2px;
   font-size: 10px;
   font-weight: 700;
@@ -1301,9 +1314,18 @@ body.folding .hero-readout { opacity: 0.4; transition: opacity 0.16s ease; }
   border-radius: 3px;
   background: var(--line);
   overflow: hidden;
-  margin: 12px 0 8px;
+  margin: 16px 0 9px;
 }
 .level-wide-fill { height: 100%; background: var(--accent); border-radius: 3px; }
+
+/* The bar and the line under it are one thing, so they sit close together and
+   keep their distance from the next block instead of the other way round. */
+.level-note {
+  margin: 0 0 20px;
+  font-size: 13px;
+  color: var(--ink-dim);
+  line-height: 1.45;
+}
 
 .section-title {
   font-size: 10px;
@@ -1317,14 +1339,15 @@ body.folding .hero-readout { opacity: 0.4; transition: opacity 0.16s ease; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 14px;
   padding: 13px 14px;
   border-radius: var(--radius);
   background: var(--surface);
   border: 1px solid var(--line-soft);
   margin-bottom: 8px;
 }
-.leak-name { font-size: 14px; }
+/* Long leak names wrap rather than crowding the count beside them. */
+.leak-name { font-size: 14px; min-width: 0; }
 .leak-count {
   font-size: 13px;
   font-weight: 700;
@@ -1412,7 +1435,6 @@ body.folding .hero-readout { opacity: 0.4; transition: opacity 0.16s ease; }
 }
 
 @media (max-height: 700px) {
-  :root { --tap: 48px; }
   .board { max-width: 244px; }
   .card .rank { font-size: 18px; }
   .card .suit { font-size: 13px; }
@@ -1427,76 +1449,18 @@ body.folding .hero-readout { opacity: 0.4; transition: opacity 0.16s ease; }
   .seat-hole { min-height: 17px; margin-top: 2px; }
   .mini-card { width: 12px; height: 17px; }
   .middle { min-height: 66px; }
-  /* End of hand scoreboard. */
-.hand-result {
-  flex: 0 0 auto;
-  margin-top: 10px;
-  padding: 11px 14px;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--line);
-  background: var(--surface);
-  animation: result-in 0.44s cubic-bezier(0.2, 0.9, 0.3, 1) both;
-}
-.hand-result[hidden] { display: none; }
-
-@keyframes result-in {
-  from { opacity: 0; transform: translate3d(0, 14px, 0) scale(0.97); }
-  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
-}
-
-.result-delta { animation: delta-in 0.5s cubic-bezier(0.2, 1.2, 0.35, 1) 0.12s both; }
-
-@keyframes delta-in {
-  from { opacity: 0; transform: scale(0.6); }
-  to { opacity: 1; transform: scale(1); }
-}
-.hand-result.won { border-color: rgba(61, 220, 151, 0.4); background: rgba(61, 220, 151, 0.07); }
-.hand-result.lost { border-color: rgba(255, 111, 97, 0.32); background: rgba(255, 111, 97, 0.06); }
-
-.result-top {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-}
-.result-who { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
-.result-delta {
-  font-size: 22px;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.03em;
-  white-space: nowrap;
-}
-.hand-result.won .result-delta { color: var(--good); }
-.hand-result.lost .result-delta { color: var(--mistake); }
-.hand-result.even .result-delta { font-size: 15px; color: var(--ink-faint); }
-
-.result-detail { margin-top: 3px; font-size: 13px; color: var(--ink-dim); }
-
-/* Once the hand is settled the scoreboard is the headline, so the grade for
-   the last decision gives up room rather than pushing the table off screen. */
-#hand-result:not([hidden]) ~ #coach-banner { max-height: 26vh; }
-
-.table-message { padding-top: 5px; }
-  .coach-banner { max-height: 32vh; margin-top: 7px; }
+  .coach-banner { max-height: 32vh; }
 
   /* With a scoreboard on screen the board gives up height first, then the
      grade for the last decision, so nothing runs off the bottom. */
   body.showing-result .middle { min-height: 48px; }
   body.showing-result .board { max-width: 200px; }
-  /* Between hands the action row is a single Next button, so it needs less
-     breathing room than a live decision does. */
-  body.showing-result .hero-zone { padding-top: 4px; }
-  body.showing-result .action-area { margin-bottom: 8px; }
-  #hand-result:not([hidden]) ~ #coach-banner { max-height: 16vh; margin-top: 4px; }
-  .hand-result { margin-top: 5px; }
-  .hand-result { margin-top: 7px; padding: 9px 12px; }
+  #hand-result:not([hidden]) ~ #coach-banner { max-height: 16vh; }
+  .hand-result { padding: 9px 12px; }
   .result-who { font-size: 16px; }
   .result-delta { font-size: 20px; }
   .result-detail { font-size: 12px; line-height: 1.35; }
   .coach-text { font-size: 13px; }
-  .hero-zone { padding: 7px 0 4px; }
-  .action-area { margin-bottom: 8px; }
   .hero-readout { padding: 8px 10px; font-size: 13px; }
   .pot-amount { font-size: 22px; }
 
@@ -1510,6 +1474,30 @@ body.folding .hero-readout { opacity: 0.4; transition: opacity 0.16s ease; }
   .opponents.many .seat-hole { min-height: 14px; margin-top: 1px; }
   .opponents.many .mini-card { width: 10px; height: 14px; }
   .opponents.many .seat-bet { margin-top: 2px; font-size: 9px; padding: 0 6px; }
+}
+
+/* Genuinely short screens, an SE and nothing taller. The spacing scale is
+   trimmed here rather than collapsed: every gap keeps its shape, it just
+   gets smaller. Tall-but-not-huge phones keep the full scale. */
+@media (max-height: 620px) {
+  :root { --tap: 48px; --v-tight: 4px; --v-step: 8px; --v-block: 13px; }
+  /* A narrower board is a shorter board, and the height it gives back buys
+     the coach a readable line instead of a clipped one. */
+  .board { max-width: 208px; }
+  .middle { min-height: 56px; }
+  /* The banner is the one thing here that can grow without limit, so on the
+     smallest screen it yields a little sooner and scrolls instead. */
+  .coach-banner { max-height: 30vh; }
+  .topbar { padding: 8px var(--pad) 10px; }
+  .hero-zone { padding: var(--v-block) 0 9px; }
+  .action-area { margin-bottom: 10px; }
+  /* The hint keeps 6px clear on each side here instead of 8. */
+  body.can-fold .action-area { margin-bottom: 24px; }
+  .fold-hint { top: -18px; }
+  /* Between hands the action row is a single Next button, so it needs less
+     breathing room than a live decision does. */
+  body.showing-result .hero-zone { padding-top: 8px; }
+  body.showing-result .action-area { margin-bottom: 10px; }
 }
 
 /* Narrow phones. Everything in the top bar has to fit across 320px, and at

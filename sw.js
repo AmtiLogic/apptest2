@@ -7,7 +7,7 @@
 // nothing to clear by hand. When there is no connection, or the network is
 // too slow to be useful, the cached copy is served instead.
 
-const CACHE_NAME = 'holdem-coach-v10';
+const CACHE_NAME = 'holdem-coach-v11';
 
 // How long to wait for the network before falling back to the cache. Short,
 // because every file here is small and a stale table beats a blank screen.

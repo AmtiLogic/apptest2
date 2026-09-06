@@ -679,7 +679,7 @@ function openStats() {
     fill.style.width = Math.round(((120 - toNext) / 120) * 100) + '%';
     bar.appendChild(fill);
     body.appendChild(bar);
-    body.appendChild(ui.el('p', 'empty-note',
+    body.appendChild(ui.el('p', 'level-note',
       state.progress.xp + ' points. ' + toNext + ' more to level ' + (level + 1) +
       '. Points come from decisions, not from winning pots.'));
 

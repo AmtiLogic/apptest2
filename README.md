@@ -169,6 +169,30 @@ in a blink, a call takes a beat, a raise gets long enough to land. A round of
 folds used to cost three seconds of watching nothing and now costs under one.
 Once you are out of the hand every wait is cut to under half.
 
+## Spacing
+
+The side rail is 14px, and the vertical scale is keyed to it: `--v-tight`
+inside a component, `--v-step` between related blocks, `--v-block` between a
+block and the controls. The rule is that a gap separating two blocks matches
+the rail or beats it, and a gap inside one stays under it. Anything that
+breaks that rule reads as squished, which is what the coach banner sitting
+12px off the buttons with 11px of its own padding was doing.
+
+Short screens trim that scale by redefining the three variables rather than
+overriding a list of rules one at a time, so every gap keeps its shape and
+just gets smaller.
+
+The breakpoint for that trim is 620px tall, not 700px. A 664px iPhone 13 is
+not a small screen, and treating it like an SE was why the most common phone
+felt packed.
+
+The elastic part of the table is the middle, where the board sits. It absorbs
+whatever is left over, so a screen with room to spare puts that room around
+the board rather than anywhere it would be noticed. The board is capped in
+width because board width drives board height through the card aspect ratio,
+and an uncapped board on a wide phone eats the vertical budget and ends up
+touching the seats.
+
 ## Motion
 
 The table is animated to make the game legible, not to decorate it. Community
