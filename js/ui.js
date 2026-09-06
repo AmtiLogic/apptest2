@@ -2,7 +2,7 @@
 // All DOM rendering. Nothing in here decides anything about poker, it just
 // draws whatever the app hands it.
 
-import { RANK_CHARS, SUIT_SYMBOLS, isRed } from './cards.js';
+import { RANK_CHARS, SUIT_SYMBOLS, isRed, cardToString } from './cards.js';
 import { parseMarkup, getTerm } from './glossary.js';
 
 export const dom = {};
@@ -22,6 +22,49 @@ export function cacheDom() {
 
 function camel(id) {
   return id.replace(/-([a-z])/g, (m, c) => c.toUpperCase());
+}
+
+// One place to ask whether motion is wanted, so every animated path can bail
+// out together for anybody who has asked their phone to stop moving things.
+let reducedMotion = false;
+try {
+  const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+  reducedMotion = query.matches;
+  if (query.addEventListener) {
+    query.addEventListener('change', (event) => { reducedMotion = event.matches; });
+  }
+} catch (err) {
+  reducedMotion = false;
+}
+
+export function prefersReducedMotion() {
+  return reducedMotion;
+}
+
+/**
+ * Count a number up or down instead of snapping to it. Chip counts changing
+ * by a visible amount is most of what makes a table feel alive.
+ */
+export function tweenNumber(node, value, duration) {
+  const target = Math.round(value);
+  const from = node.dataset.value === undefined ? target : Number(node.dataset.value);
+  node.dataset.value = String(target);
+  if (node.tweenFrame) cancelAnimationFrame(node.tweenFrame);
+  if (from === target || reducedMotion) {
+    node.textContent = String(target);
+    return;
+  }
+  const ms = duration || 460;
+  const started = performance.now();
+  const step = (now) => {
+    const progress = Math.min(1, (now - started) / ms);
+    // Ease out cubic: quick off the mark, gentle landing.
+    const eased = 1 - Math.pow(1 - progress, 3);
+    node.textContent = String(Math.round(from + (target - from) * eased));
+    if (progress < 1) node.tweenFrame = requestAnimationFrame(step);
+    else node.tweenFrame = null;
+  };
+  node.tweenFrame = requestAnimationFrame(step);
 }
 
 export function el(tag, className, text) {
@@ -74,7 +117,6 @@ export function cardEl(card, options = {}) {
     return node;
   }
   if (isRed(card)) node.classList.add('red');
-  if (options.dealt) node.classList.add('dealt');
   if (options.mini) {
     node.textContent = RANK_CHARS[card.rank] + SUIT_SYMBOLS[card.suit];
     return node;
@@ -85,16 +127,50 @@ export function cardEl(card, options = {}) {
 }
 
 let lastBoardCount = 0;
+let boardSlots = null;
+
+// A card is two faces on one hinge. Keeping the slots in the DOM is what
+// lets a card actually turn over instead of being swapped out.
+function buildBoardSlots() {
+  clear(dom.board);
+  boardSlots = [];
+  for (let i = 0; i < 5; i++) {
+    const root = el('div', 'slot');
+    const inner = el('div', 'slot-inner');
+    const back = el('div', 'slot-face back');
+    const front = el('div', 'slot-face front');
+    front.appendChild(el('span', 'rank'));
+    front.appendChild(el('span', 'suit'));
+    inner.appendChild(back);
+    inner.appendChild(front);
+    root.appendChild(inner);
+    dom.board.appendChild(root);
+    boardSlots.push({ root, inner, front });
+  }
+}
+
+function paintFace(slot, card) {
+  slot.front.firstChild.textContent = RANK_CHARS[card.rank];
+  slot.front.lastChild.textContent = SUIT_SYMBOLS[card.suit];
+  slot.front.classList.toggle('red', isRed(card));
+}
 
 export function renderBoard(board) {
-  clear(dom.board);
+  if (!boardSlots) buildBoardSlots();
+  const previous = lastBoardCount;
   for (let i = 0; i < 5; i++) {
+    const slot = boardSlots[i];
     const card = board[i];
-    if (!card) {
-      dom.board.appendChild(cardEl(null, { faceDown: true }));
-      continue;
+    if (card) {
+      paintFace(slot, card);
+      // Cards arriving together turn over one after another.
+      const delay = reducedMotion ? 0 : Math.max(0, i - previous) * 110;
+      slot.inner.style.transitionDelay = delay + 'ms';
+      slot.root.classList.add('revealed');
+    } else {
+      slot.inner.style.transitionDelay = '0ms';
+      slot.root.classList.remove('revealed');
     }
-    dom.board.appendChild(cardEl(card, { dealt: i >= lastBoardCount }));
   }
   lastBoardCount = board.length;
 }
@@ -111,74 +187,176 @@ export function primeBoard(count) {
 
 // ------------------------------------------------------------------- seats
 
+// Seats are built once and then updated in place. Rebuilding them on every
+// action, which is what used to happen, made every transition impossible:
+// nothing can ease from a value it never had.
+let seatCache = { signature: null, nodes: new Map() };
+
 export function renderSeats(table, options = {}) {
-  clear(dom.opponents);
+  const signature = table.players.map((p) => p.name).join('|');
+  if (seatCache.signature !== signature) {
+    clear(dom.opponents);
+    seatCache = { signature, nodes: new Map() };
+    for (const player of table.players) {
+      if (player.isHuman) continue;
+      const parts = buildSeat(player);
+      seatCache.nodes.set(player.index, parts);
+      dom.opponents.appendChild(parts.root);
+    }
+  }
   dom.opponents.classList.toggle('many', table.players.length > 6);
   for (const player of table.players) {
     if (player.isHuman) continue;
-    dom.opponents.appendChild(seatEl(table, player, options));
+    updateSeat(seatCache.nodes.get(player.index), table, player, options);
   }
 }
 
-function seatEl(table, player, options) {
-  const seat = el('div', 'seat');
-  seat.dataset.seat = String(player.index);
-  if (player.folded || !player.hasCards) seat.classList.add('folded');
-  if (table.toAct === player.index && !table.handOver) seat.classList.add('acting');
-  if (options.winners && options.winners.includes(player.index)) seat.classList.add('winner');
-
-  seat.appendChild(el('div', 'seat-marker'));
-
-  seat.appendChild(el('div', 'seat-avatar', player.avatar));
-  seat.appendChild(el('div', 'seat-name', player.name));
-  seat.appendChild(el('div', 'seat-stack', player.stack));
-
-  // Dealer button, blind marker and the last action share one row, so
-  // nothing sits on top of the avatar.
+function buildSeat(player) {
+  const root = el('div', 'seat');
+  root.dataset.seat = String(player.index);
+  const marker = el('div', 'seat-marker');
+  const avatar = el('div', 'seat-avatar', player.avatar);
+  const name = el('div', 'seat-name', player.name);
+  const stack = el('div', 'seat-stack');
   const meta = el('div', 'seat-meta');
-  if (table.streetFirstActor === player.index && !table.handOver) {
-    const badge = el('span', 'seat-tag start', '1ST');
-    badge.title = 'Acts first this round';
-    meta.appendChild(badge);
-  }
-  if (table.buttonIndex === player.index) {
-    const badge = el('span', 'seat-tag dealer', 'D');
-    badge.title = 'Dealer button';
-    meta.appendChild(badge);
-  }
-  const blind = blindLabel(table, player.index);
-  if (blind) {
-    const badge = el('span', 'seat-tag blind' + (blind === 'BB' ? ' big' : ''), blind);
-    badge.title = blind === 'BB' ? 'Big blind' : 'Small blind';
-    meta.appendChild(badge);
-  }
-  if (player.lastAction) {
-    meta.appendChild(el('span', 'seat-action', player.lastAction.split(' ')[0]));
-  }
-  seat.appendChild(meta);
-
   const hole = el('div', 'seat-hole');
-  if (player.hasCards && !player.folded) {
-    const reveal = options.reveal && options.reveal.includes(player.index);
-    for (const card of player.hole) {
-      hole.appendChild(cardEl(card, { mini: true, faceDown: !reveal }));
+  const bet = el('div', 'seat-bet empty');
+  root.appendChild(marker);
+  root.appendChild(avatar);
+  root.appendChild(name);
+  root.appendChild(stack);
+  root.appendChild(meta);
+  root.appendChild(hole);
+  root.appendChild(bet);
+  return { root, avatar, name, stack, meta, hole, bet };
+}
+
+function updateSeat(parts, table, player, options) {
+  if (!parts) return;
+  const { root, stack, meta, hole, bet } = parts;
+
+  root.classList.toggle('folded', player.folded || !player.hasCards);
+  root.classList.toggle('acting', table.toAct === player.index && !table.handOver);
+  root.classList.toggle('winner',
+    !!(options.winners && options.winners.includes(player.index)));
+
+  tweenNumber(stack, player.stack);
+
+  // The tags are tiny and change rarely, so a signature check keeps the DOM
+  // still unless something really moved.
+  const blind = blindLabel(table, player.index);
+  const tags = [
+    table.streetFirstActor === player.index && !table.handOver ? 'start' : '',
+    table.buttonIndex === player.index ? 'dealer' : '',
+    blind || '',
+    player.lastAction ? player.lastAction.split(' ')[0] : ''
+  ].join(',');
+  if (meta.dataset.tags !== tags) {
+    meta.dataset.tags = tags;
+    clear(meta);
+    if (table.streetFirstActor === player.index && !table.handOver) {
+      const badge = el('span', 'seat-tag start', '1ST');
+      badge.title = 'Acts first this round';
+      meta.appendChild(badge);
+    }
+    if (table.buttonIndex === player.index) {
+      const badge = el('span', 'seat-tag dealer', 'D');
+      badge.title = 'Dealer button';
+      meta.appendChild(badge);
+    }
+    if (blind) {
+      const badge = el('span', 'seat-tag blind' + (blind === 'BB' ? ' big' : ''), blind);
+      badge.title = blind === 'BB' ? 'Big blind' : 'Small blind';
+      meta.appendChild(badge);
+    }
+    if (player.lastAction) {
+      meta.appendChild(el('span', 'seat-action', player.lastAction.split(' ')[0]));
     }
   }
-  seat.appendChild(hole);
 
-  // Always present so a bet appearing does not shift the row. Once the hand
-  // is settled this slot shows what the player won or lost instead.
+  const reveal = !!(options.reveal && options.reveal.includes(player.index));
+  const holeState = (player.hasCards && !player.folded)
+    ? player.hole.map((c) => (reveal ? cardToString(c) : 'x')).join('')
+    : '';
+  if (hole.dataset.state !== holeState) {
+    const dealing = !hole.dataset.state && holeState;
+    hole.dataset.state = holeState;
+    clear(hole);
+    if (holeState) {
+      player.hole.forEach((card, i) => {
+        const node = cardEl(card, { mini: true, faceDown: !reveal });
+        if (dealing && !reducedMotion) {
+          node.classList.add('deal-in');
+          node.style.animationDelay = (player.index * 70 + i * 45) + 'ms';
+        }
+        hole.appendChild(node);
+      });
+    }
+  }
+
+  // The chip in front of a player: their bet during the hand, then what the
+  // hand cost or made them once it is settled.
   const net = options.nets ? options.nets[player.index] : null;
   if (net !== null && net !== undefined && net !== 0) {
-    seat.appendChild(el(
-      'div', 'seat-bet ' + (net > 0 ? 'win' : 'lose'),
-      (net > 0 ? '+' : '') + net
-    ));
+    bet.className = 'seat-bet ' + (net > 0 ? 'win' : 'lose');
+    bet.textContent = (net > 0 ? '+' : '') + net;
+    delete bet.dataset.value;
+  } else if (player.committed > 0) {
+    const appearing = bet.classList.contains('empty');
+    bet.className = 'seat-bet';
+    tweenNumber(bet, player.committed, 280);
+    if (appearing && !reducedMotion) {
+      bet.classList.remove('pop');
+      void bet.offsetWidth;
+      bet.classList.add('pop');
+    }
   } else {
-    seat.appendChild(el('div', 'seat-bet' + (player.committed > 0 ? '' : ' empty'),
-      player.committed > 0 ? player.committed : '0'));
+    bet.className = 'seat-bet empty';
+    bet.textContent = '0';
+    delete bet.dataset.value;
   }
-  return seat;
+}
+
+/**
+ * Where every bet chip is sitting right now, measured before the table is
+ * redrawn. Handed straight to flyChipsToPot.
+ */
+export function captureBets() {
+  if (reducedMotion || !seatCache.nodes.size) return [];
+  const chips = [];
+  for (const parts of seatCache.nodes.values()) {
+    if (parts.bet.classList.contains('empty')) continue;
+    const rect = parts.bet.getBoundingClientRect();
+    if (!rect.width) continue;
+    chips.push({ rect, text: parts.bet.textContent });
+  }
+  return chips;
+}
+
+/**
+ * Slide the chips people just bet into the middle when a street closes, so
+ * the pot growing is something you watch rather than a number that changes.
+ */
+export function flyChipsToPot(chips) {
+  if (!chips || !chips.length || reducedMotion) return;
+  const target = dom.potAmount.getBoundingClientRect();
+  for (const chip of chips) {
+    const ghost = el('div', 'chip-ghost', chip.text);
+    ghost.style.left = chip.rect.left + 'px';
+    ghost.style.top = chip.rect.top + 'px';
+    ghost.style.width = chip.rect.width + 'px';
+    ghost.style.height = chip.rect.height + 'px';
+    document.body.appendChild(ghost);
+    const dx = (target.left + target.width / 2) - (chip.rect.left + chip.rect.width / 2);
+    const dy = (target.top + target.height / 2) - (chip.rect.top + chip.rect.height / 2);
+    requestAnimationFrame(() => {
+      ghost.style.transform = 'translate(' + dx + 'px, ' + dy + 'px) scale(0.5)';
+      ghost.style.opacity = '0';
+    });
+    setTimeout(() => {
+      if (ghost.parentNode) ghost.parentNode.removeChild(ghost);
+    }, 620);
+  }
 }
 
 // "SB" or "BB" for the seat, when it posted one this hand.
@@ -192,14 +370,31 @@ export function blindLabel(table, seatIndex) {
 
 // -------------------------------------------------------------------- hero
 
+let heroCardState = '';
+
 export function renderHero(table, hero, readout, heroNet) {
-  clear(dom.heroCards);
   dom.heroCards.classList.toggle('folded', !!hero.folded);
-  if (hero.hasCards && hero.hole.length) {
-    for (const card of hero.hole) dom.heroCards.appendChild(cardEl(card));
-  } else {
-    dom.heroCards.appendChild(cardEl(null));
-    dom.heroCards.appendChild(cardEl(null));
+  const state = hero.hasCards && hero.hole.length
+    ? hero.hole.map(cardToString).join('')
+    : '';
+  // Only rebuilt when the cards actually change, so they deal in once rather
+  // than flickering on every action.
+  if (heroCardState !== state) {
+    heroCardState = state;
+    clear(dom.heroCards);
+    if (state) {
+      hero.hole.forEach((card, i) => {
+        const node = cardEl(card);
+        if (!reducedMotion) {
+          node.classList.add('deal-in');
+          node.style.animationDelay = (i * 90) + 'ms';
+        }
+        dom.heroCards.appendChild(node);
+      });
+    } else {
+      dom.heroCards.appendChild(cardEl(null));
+      dom.heroCards.appendChild(cardEl(null));
+    }
   }
 
   clear(dom.heroStack);
@@ -218,7 +413,10 @@ export function renderHero(table, hero, readout, heroNet) {
   if (marks.childNodes.length) dom.heroStack.appendChild(marks);
 
   const stack = el('span', null, '');
-  stack.appendChild(el('strong', null, hero.stack));
+  const amount = el('strong');
+  amount.dataset.value = String(hero.stack);
+  amount.textContent = String(hero.stack);
+  stack.appendChild(amount);
   stack.appendChild(document.createTextNode(' chips'));
   if (hero.committed > 0) {
     stack.appendChild(document.createTextNode(', ' + hero.committed + ' in'));
@@ -275,7 +473,7 @@ export function hideResult() {
 }
 
 export function setPot(amount) {
-  dom.potAmount.textContent = amount;
+  tweenNumber(dom.potAmount, amount);
 }
 
 export function setHandNumber(n) {
@@ -389,6 +587,7 @@ export function renderActionRow(options) {
   const area = dom.actionArea;
   clear(area);
   const row = el('div', 'action-row');
+  if (!reducedMotion) row.classList.add('enter');
   const legal = options.legal;
 
   const fold = el('button', 'act-btn fold', 'Fold');
@@ -594,12 +793,14 @@ export function renderDiagram(data) {
 function orderDiagram(data) {
   const box = el('div', 'dg dg-order');
   const strip = el('div', 'dg-strip');
+  if (!reducedMotion) strip.classList.add('enter');
   data.seats.forEach((seatData, i) => {
     if (i > 0) strip.appendChild(el('span', 'dg-arrow', '\u203a'));
     const chip = el('div', 'dg-seat' +
       (seatData.isMe ? ' me' : '') +
       (seatData.folded ? ' folded' : '') +
       (seatData.acting ? ' acting' : ''));
+    if (!reducedMotion) chip.style.animationDelay = (i * 55) + 'ms';
     chip.appendChild(el('span', 'dg-num', String(i + 1)));
     chip.appendChild(el('span', 'dg-name', seatData.name));
     // The same D badge the table uses, so it needs no explaining.

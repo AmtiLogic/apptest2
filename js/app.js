@@ -258,13 +258,17 @@ function botTurn() {
   const seat = t.toAct;
   const action = botAction(t, seat, t.rng);
   const before = t.street;
+  const chips = ui.captureBets();
   applyAction(t, action);
   saveGame();
   render();
-  if (t.street !== before && !t.handOver) {
-    // Give the new community cards a moment to land before the next action.
-    dealPause(t);
-    return;
+  if (t.street !== before) {
+    ui.flyChipsToPot(chips);
+    if (!t.handOver) {
+      // Give the new community cards a moment to land before the next action.
+      dealPause(t);
+      return;
+    }
   }
   step();
 }
@@ -289,12 +293,16 @@ function heroActs(action) {
   }
 
   const before = t.street;
+  const chips = ui.captureBets();
   applyAction(t, action);
   saveGame();
   render();
-  if (t.street !== before && !t.handOver) {
-    dealPause(t);
-    return;
+  if (t.street !== before) {
+    ui.flyChipsToPot(chips);
+    if (!t.handOver) {
+      dealPause(t);
+      return;
+    }
   }
   step();
 }
@@ -304,7 +312,7 @@ function heroActs(action) {
 function dealPause(t) {
   clearTimer();
   ui.renderWaiting('Dealing the ' + t.street);
-  state.timer = setTimeout(step, 420);
+  state.timer = setTimeout(step, 560);
 }
 
 function recordVerdict(verdict) {

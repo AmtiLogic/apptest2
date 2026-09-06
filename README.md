@@ -151,6 +151,22 @@ and only a mistake breaks it. Terms you have never opened are badged as new in
 the list, so eighty words become something you can work through rather than a
 wall.
 
+## Motion
+
+The table is animated to make the game legible, not to decorate it. Community
+cards turn over on a real hinge, one after another, so a flop arrives rather
+than appears. Chip counts and the pot count up instead of snapping, and when a
+betting round closes the chips people bet slide into the middle. Cards deal in
+to the seats and to your hand, the caret over whoever is thinking drifts
+gently, and the winning seat swells for a moment.
+
+None of that was possible while the seats were being torn down and rebuilt on
+every action, which is what used to happen. Seat and card elements are now
+built once and updated in place, so transitions have a value to ease from.
+
+Everything respects `prefers-reduced-motion`. With it on, every number, card
+and panel lands in its final state immediately and nothing moves.
+
 ## Reading the table
 
 - **D**, **SB** and **BB** under a player mark the dealer button and the two
