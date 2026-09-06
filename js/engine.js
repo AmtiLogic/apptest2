@@ -125,10 +125,6 @@ export function startHand(t) {
     p.wonLast = 0;
   }
 
-  // Kept so a hand can be replayed afterwards: the log says what happened,
-  // this says what everybody had before it did.
-  t.handStartStacks = t.players.map((p) => p.stack);
-
   t.deck = shuffle(newDeck(), t.rng);
   t.board = [];
   t.pot = 0;

@@ -13,7 +13,7 @@ export function cacheDom() {
     'table-message', 'hand-result', 'coach-banner', 'action-area', 'hero-cards',
     'hero-stack', 'hero-readout', 'sheet', 'sheet-title', 'sheet-body',
     'screen', 'screen-title', 'screen-body',
-    'level-label', 'streak-label', 'level-fill'
+    'level-label', 'streak-label', 'level-fill', 'fold-hint'
   ];
   for (const id of ids) {
     dom[camel(id)] = document.getElementById(id);
@@ -279,18 +279,12 @@ function updateSeat(parts, table, player, options) {
     ? player.hole.map((c) => (reveal ? cardToString(c) : 'x')).join('')
     : '';
   if (hole.dataset.state !== holeState) {
-    const dealing = !hole.dataset.state && holeState;
     hole.dataset.state = holeState;
     clear(hole);
     if (holeState) {
-      player.hole.forEach((card, i) => {
-        const node = cardEl(card, { mini: true, faceDown: !reveal });
-        if (dealing && !reducedMotion) {
-          node.classList.add('deal-in');
-          node.style.animationDelay = (player.index * 70 + i * 45) + 'ms';
-        }
-        hole.appendChild(node);
-      });
+      for (const card of player.hole) {
+        hole.appendChild(cardEl(card, { mini: true, faceDown: !reveal }));
+      }
     }
   }
 
@@ -368,6 +362,156 @@ export function blindLabel(table, seatIndex) {
   return null;
 }
 
+/**
+ * Deal the cards out from the middle of the table, one at a time, in the
+ * order they really go round: everybody gets one, then everybody gets a
+ * second. Returns how long the whole thing takes so the game can wait for it.
+ */
+export function dealHandout(order, heroSeat) {
+  if (reducedMotion || !order || !order.length) return 0;
+  const deck = dom.board.getBoundingClientRect();
+  if (!deck.width) return 0;
+  const originX = deck.left + deck.width / 2;
+  const originY = deck.top + deck.height / 2;
+  const stagger = 42;
+  let dealt = 0;
+
+  for (let round = 0; round < 2; round++) {
+    for (const seat of order) {
+      const source = seat === heroSeat
+        ? dom.heroCards
+        : (seatCache.nodes.get(seat) || {}).hole;
+      const node = source && source.children[round];
+      if (!node) continue;
+      const rect = node.getBoundingClientRect();
+      if (!rect.width) continue;
+      node.style.setProperty('--deal-x', (originX - (rect.left + rect.width / 2)) + 'px');
+      node.style.setProperty('--deal-y', (originY - (rect.top + rect.height / 2)) + 'px');
+      node.style.animationDelay = (dealt * stagger) + 'ms';
+      node.classList.remove('handout');
+      // Forces the animation to start again for a card that is being reused.
+      void node.offsetWidth;
+      node.classList.add('handout');
+      dealt += 1;
+    }
+  }
+  return dealt ? dealt * stagger + 360 : 0;
+}
+
+// ------------------------------------------------------------ fold gesture
+
+// How far the cards have to travel before letting go throws the hand away.
+const FOLD_DISTANCE = 66;
+
+const foldDrag = {
+  enabled: false,
+  onFold: null,
+  active: false,
+  pointerId: null,
+  startY: 0,
+  distance: 0,
+  wired: false
+};
+
+/**
+ * Turned on only while folding is actually one of the choices, so the cards
+ * are never draggable at a moment when throwing them away would do nothing.
+ */
+export function setFoldGesture(enabled, onFold) {
+  foldDrag.enabled = !!enabled;
+  foldDrag.onFold = onFold || null;
+  if (!foldDrag.wired) wireFoldGesture();
+  if (!enabled) {
+    foldDrag.active = false;
+    clearFoldDrag();
+  }
+  dom.heroCards.classList.toggle('draggable', !!enabled);
+  dom.foldHint.classList.toggle('showing', !!enabled && !reducedMotion);
+}
+
+function wireFoldGesture() {
+  foldDrag.wired = true;
+  const node = dom.heroCards;
+
+  node.addEventListener('pointerdown', (event) => {
+    if (!foldDrag.enabled) return;
+    foldDrag.active = true;
+    foldDrag.pointerId = event.pointerId;
+    foldDrag.startY = event.clientY;
+    foldDrag.distance = 0;
+    node.classList.add('dragging');
+    document.body.classList.add('folding');
+    try { node.setPointerCapture(event.pointerId); } catch (err) { /* mouse is fine without */ }
+  });
+
+  node.addEventListener('pointermove', (event) => {
+    if (!foldDrag.active || event.pointerId !== foldDrag.pointerId) return;
+    // Only upward counts. Dragging down does nothing at all.
+    foldDrag.distance = Math.max(0, foldDrag.startY - event.clientY);
+    paintFoldDrag(foldDrag.distance);
+    event.preventDefault();
+  });
+
+  const finish = (event) => {
+    if (!foldDrag.active) return;
+    if (event && event.pointerId !== undefined && event.pointerId !== foldDrag.pointerId) return;
+    foldDrag.active = false;
+    node.classList.remove('dragging');
+    document.body.classList.remove('folding');
+    try { node.releasePointerCapture(foldDrag.pointerId); } catch (err) { /* already gone */ }
+    if (foldDrag.distance >= FOLD_DISTANCE && foldDrag.enabled && foldDrag.onFold) {
+      throwHandAway();
+    } else {
+      clearFoldDrag();
+    }
+  };
+  node.addEventListener('pointerup', finish);
+  node.addEventListener('pointercancel', finish);
+}
+
+function paintFoldDrag(distance) {
+  const lift = Math.min(distance, 130);
+  const ready = distance >= FOLD_DISTANCE;
+  dom.heroCards.style.transform =
+    'translate3d(0, ' + (-lift) + 'px, 0) rotate(' + (-lift * 0.05) + 'deg)';
+  dom.heroCards.style.opacity = String(1 - Math.min(0.5, lift / 240));
+  // The label rides up with the cards instead of being left behind.
+  dom.foldHint.style.transform = 'translate3d(0, ' + (-lift) + 'px, 0)';
+  dom.foldHint.style.opacity = String(Math.min(1, 0.35 + distance / FOLD_DISTANCE));
+  dom.foldHint.classList.toggle('ready', ready);
+  dom.foldHint.textContent = ready ? 'Let go to fold' : 'Swipe up to fold';
+}
+
+function clearFoldDrag() {
+  document.body.classList.remove('folding');
+  dom.heroCards.classList.remove('mucked');
+  dom.heroCards.style.transform = '';
+  dom.heroCards.style.opacity = '';
+  dom.foldHint.style.transform = '';
+  dom.foldHint.style.opacity = '';
+  dom.foldHint.classList.remove('ready');
+  dom.foldHint.textContent = 'Swipe up to fold';
+}
+
+// The cards carry on the way they were thrown, then the fold is played.
+function throwHandAway() {
+  const onFold = foldDrag.onFold;
+  dom.foldHint.style.opacity = '';
+  if (reducedMotion) {
+    clearFoldDrag();
+    if (onFold) onFold();
+    return;
+  }
+  dom.heroCards.style.transform = '';
+  dom.heroCards.style.opacity = '';
+  dom.foldHint.style.transform = '';
+  dom.heroCards.classList.add('mucked');
+  setTimeout(() => {
+    clearFoldDrag();
+    if (onFold) onFold();
+  }, 230);
+}
+
 // -------------------------------------------------------------------- hero
 
 let heroCardState = '';
@@ -383,14 +527,7 @@ export function renderHero(table, hero, readout, heroNet) {
     heroCardState = state;
     clear(dom.heroCards);
     if (state) {
-      hero.hole.forEach((card, i) => {
-        const node = cardEl(card);
-        if (!reducedMotion) {
-          node.classList.add('deal-in');
-          node.style.animationDelay = (i * 90) + 'ms';
-        }
-        dom.heroCards.appendChild(node);
-      });
+      for (const card of hero.hole) dom.heroCards.appendChild(cardEl(card));
     } else {
       dom.heroCards.appendChild(cardEl(null));
       dom.heroCards.appendChild(cardEl(null));
@@ -586,6 +723,7 @@ export function hideBanner() {
 export function renderActionRow(options) {
   const area = dom.actionArea;
   clear(area);
+  setFoldGesture(true, options.onFold);
   const row = el('div', 'action-row');
   if (!reducedMotion) row.classList.add('enter');
   const legal = options.legal;
@@ -631,6 +769,7 @@ export function renderActionRow(options) {
 export function renderBetSizer(options) {
   const area = dom.actionArea;
   clear(area);
+  setFoldGesture(false);
   const legal = options.legal;
   const box = el('div', 'bet-sizer');
 
@@ -710,69 +849,31 @@ export function renderBetSizer(options) {
   area.appendChild(box);
 }
 
-export function renderWaiting(text) {
+export function renderWaiting(text, onSkip) {
+  setFoldGesture(false);
   clear(dom.actionArea);
-  dom.actionArea.appendChild(el('div', 'waiting', text || ''));
-}
-
-export function renderNextHand(onNext, onReplay) {
-  clear(dom.actionArea);
-  const row = el('div', 'action-row');
-  if (onReplay) {
-    const replay = el('button', 'act-btn', 'Watch it back');
-    replay.type = 'button';
-    replay.addEventListener('click', onReplay);
-    row.appendChild(replay);
+  if (!onSkip) {
+    dom.actionArea.appendChild(el('div', 'waiting', text || ''));
+    return;
   }
-  const btn = el('button', 'next-btn wide', 'Next hand');
-  btn.type = 'button';
-  btn.addEventListener('click', onNext);
-  row.appendChild(btn);
+  // Once you are out of the hand there is nothing to decide, so there is a
+  // way to stop waiting for it.
+  const row = el('div', 'action-row');
+  row.appendChild(el('div', 'waiting grow', text || ''));
+  const skip = el('button', 'act-btn skip', 'Skip');
+  skip.type = 'button';
+  skip.addEventListener('click', onSkip);
+  row.appendChild(skip);
   dom.actionArea.appendChild(row);
 }
 
-/**
- * The controls for stepping through a finished hand. The table itself is the
- * canvas, so this is only the transport.
- */
-export function renderReplayBar(options) {
+export function renderNextHand(onNext) {
+  setFoldGesture(false);
   clear(dom.actionArea);
-  const bar = el('div', 'replay-bar');
-
-  const back = el('button', 'replay-btn', '\u2039');
-  back.type = 'button';
-  back.setAttribute('aria-label', 'Previous step');
-  back.disabled = options.index === 0;
-  back.addEventListener('click', options.onBack);
-  bar.appendChild(back);
-
-  const playPause = el('button', 'replay-btn play', options.playing ? '\u2016' : '\u25b6');
-  playPause.type = 'button';
-  playPause.setAttribute('aria-label', options.playing ? 'Pause' : 'Play');
-  playPause.addEventListener('click', options.onToggle);
-  bar.appendChild(playPause);
-
-  const forward = el('button', 'replay-btn', '\u203a');
-  forward.type = 'button';
-  forward.setAttribute('aria-label', 'Next step');
-  forward.disabled = options.index >= options.total - 1;
-  forward.addEventListener('click', options.onForward);
-  bar.appendChild(forward);
-
-  const dots = el('div', 'replay-steps');
-  for (let i = 0; i < options.total; i++) {
-    const dot = el('span', 'replay-dot' + (i <= options.index ? ' done' : '') +
-      (i === options.index ? ' now' : ''));
-    dots.appendChild(dot);
-  }
-  bar.appendChild(dots);
-
-  const done = el('button', 'replay-btn wide', 'Done');
-  done.type = 'button';
-  done.addEventListener('click', options.onExit);
-  bar.appendChild(done);
-
-  dom.actionArea.appendChild(bar);
+  const btn = el('button', 'next-btn', 'Next hand');
+  btn.type = 'button';
+  btn.addEventListener('click', onNext);
+  dom.actionArea.appendChild(btn);
 }
 
 // --------------------------------------------------------------- diagrams

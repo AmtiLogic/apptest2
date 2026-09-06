@@ -119,25 +119,6 @@ Those get a small diagram built from the hand you are in, above the words:
 
 There is also a searchable list of every term under Terms.
 
-## Watching a hand back
-
-Every finished hand has a **Watch it back** button next to Next hand. It
-rebuilds the hand from the engine's log and steps through it on the real
-table: blinds go in, players act one at a time with the caret moving between
-them, the flop and turn and river deal out, chips move, and the showdown pays
-out at the end. A line under the board says what just happened, and on your
-own turns the grade you were given at the time comes back with it.
-
-It plays itself at a step every second and a half. Touching the arrows takes
-over and pauses it. Tapping a term mid replay explains it for the moment you
-are looking at, not for the finished hand, so you can stop on the flop and
-ask what a flush draw was worth right there.
-
-`js/replay.js` reconstructs everything from `handStartStacks` plus the log
-rather than storing a copy of the table at every step, and a test asserts
-chips are conserved at every frame and that the last frame lands on exactly
-the stacks the real hand ended with.
-
 ## Points, levels and streaks
 
 Points come from decisions, never from winning chips. A bad call that happens
@@ -151,13 +132,26 @@ and only a mistake breaks it. Terms you have never opened are badged as new in
 the list, so eighty words become something you can work through rather than a
 wall.
 
+## Playing a hand
+
+Cards are dealt out from the middle one at a time, twice round the table
+starting left of the button, the way they really go. Nothing acts until they
+have landed.
+
+Your two cards can be **swiped up to fold**. Drag them and they lift and fade,
+the buttons underneath get out of the way, and the label above them turns red
+once you have gone far enough. Let go short of that and they spring back. The
+Fold button does the same thing for anybody who would rather tap.
+
+Once you have folded there is nothing left to decide, so a **Skip** button
+appears next to the waiting line and plays the rest of the hand out at once.
+
 ## Motion
 
 The table is animated to make the game legible, not to decorate it. Community
 cards turn over on a real hinge, one after another, so a flop arrives rather
 than appears. Chip counts and the pot count up instead of snapping, and when a
-betting round closes the chips people bet slide into the middle. Cards deal in
-to the seats and to your hand, the caret over whoever is thinking drifts
+betting round closes the chips people bet slide into the middle. The caret over whoever is thinking drifts
 gently, and the winning seat swells for a moment.
 
 None of that was possible while the seats were being torn down and rebuilt on
