@@ -1189,6 +1189,56 @@ test('the range grid is the chart for the seat it says it is', () => {
   assert.equal(marked[0].code, 'A7o');
 });
 
+test('the two odds bars always agree with the verdict beside them', () => {
+  // The picture is two bars on one scale and a line saying which won. If the
+  // flag and the numbers could ever disagree, the bar would be showing one
+  // answer while the words gave the other.
+  for (let seed = 1; seed <= 400; seed++) {
+    const t = table(6, seed);
+    startHand(t);
+    let guard = 0;
+    while (!t.handOver && t.toAct !== 0 && guard < 200) {
+      guard += 1;
+      applyAction(t, botAction(t, t.toAct, t.rng));
+    }
+    if (t.handOver || t.toAct !== 0) continue;
+    // Get to a flop with a bet in front of the human.
+    applyAction(t, { type: 'call' });
+    guard = 0;
+    while (!t.handOver && t.street === 'preflop' && guard < 200) {
+      guard += 1;
+      if (t.toAct === 0) {
+        const legal = legalActions(t);
+        applyAction(t, legal && legal.canCheck ? { type: 'check' } : { type: 'call' });
+      } else {
+        applyAction(t, botAction(t, t.toAct, t.rng));
+      }
+    }
+    guard = 0;
+    while (!t.handOver && t.toAct !== 0 && guard < 200) {
+      guard += 1;
+      applyAction(t, botAction(t, t.toAct, t.rng));
+    }
+    if (t.handOver || t.toAct !== 0) continue;
+
+    const odds = oddsData(t, 0);
+    if (!odds) continue;
+
+    assert.ok(odds.need >= 0 && odds.need <= 100, 'seed ' + seed + ' need out of range');
+    assert.ok(odds.toCall > 0, 'seed ' + seed + ' drew a price with nothing to call');
+    // The pot drawn is the one you would be playing for, your call included.
+    assert.equal(odds.pot, t.pot + odds.toCall, 'seed ' + seed + ' pot is not the pot after calling');
+    assert.equal(odds.need, Math.round((odds.toCall / odds.pot) * 100), 'seed ' + seed + ' need is not the price');
+    if (odds.equity === null) {
+      assert.equal(odds.good, false, 'seed ' + seed + ' called a no draw spot worth it');
+    } else {
+      assert.ok(odds.equity >= 0 && odds.equity <= 100, 'seed ' + seed + ' equity out of range');
+      assert.equal(odds.good, odds.equity >= odds.need,
+        'seed ' + seed + ': bars say ' + odds.equity + ' v ' + odds.need + ' but good is ' + odds.good);
+    }
+  }
+});
+
 test('suited and offsuit are separate squares that can disagree', () => {
   // Two squares read as the same two ranks. They are not the same hand, and a
   // grid that lit them together would be teaching the opposite of the truth.

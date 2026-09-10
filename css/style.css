@@ -1198,41 +1198,57 @@ body.folding .hero-readout { opacity: 0.4; transition: opacity 0.16s ease; }
 .dg-arrow { color: var(--ink-faint); font-size: 12px; }
 
 /* The price against your chance of getting there. */
-.dg-track {
-  position: relative;
-  height: 14px;
-  border-radius: 7px;
-  background: var(--surface-high);
-  overflow: visible;
+/* Two bars on one scale, one over the other, so their lengths compare. One
+   grid holds both rows, which is what keeps the bars starting and ending on
+   the same pixels. */
+.dg-odds-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr max-content;
+  align-items: center;
+  gap: 6px 9px;
 }
-.dg-fill {
+.dg-odds-name { font-size: 12px; color: var(--ink-dim); white-space: nowrap; }
+.dg-odds-bar {
+  position: relative;
+  display: block;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--surface-high);
+  overflow: hidden;
+}
+.dg-odds-bar i {
   position: absolute;
   inset: 0 auto 0 0;
-  border-radius: 7px;
+  display: block;
+  border-radius: 5px;
   background: var(--ink-faint);
-  transition: width 0.25s ease;
+  transition: width 0.32s cubic-bezier(0.2, 0.9, 0.3, 1);
 }
-.dg-odds.good .dg-fill { background: var(--good); }
-.dg-odds.bad .dg-fill { background: var(--mistake); }
-.dg-tick {
-  position: absolute;
-  top: -4px;
-  bottom: -4px;
-  width: 2px;
-  background: var(--ink);
-  border-radius: 1px;
+.dg-odds-bar.need i { background: var(--ink-dim); }
+.dg-odds.good .dg-odds-bar.have i { background: var(--good); }
+.dg-odds.bad .dg-odds-bar.have i { background: var(--mistake); }
+
+.dg-odds-num {
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  min-width: 30px;
+  text-align: right;
+  color: var(--ink-dim);
 }
-.dg-legend {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  margin-top: 6px;
-  font-size: 11px;
+.dg-odds.good .dg-odds-num.have { color: var(--good); }
+.dg-odds.bad .dg-odds-num.have { color: var(--mistake); }
+
+.dg-odds-verdict {
+  margin-top: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
 }
-.dg-have { font-weight: 700; }
-.dg-odds.good .dg-have { color: var(--good); }
-.dg-odds.bad .dg-have { color: var(--mistake); }
-.dg-need { color: var(--ink-dim); }
+.dg-odds.good .dg-odds-verdict { color: var(--good); }
+.dg-odds.bad .dg-odds-verdict { color: var(--mistake); }
+.dg-odds .dg-caption { margin-top: 4px; }
+
 
 /* Every card nobody has seen, with the ones that save you filled in. */
 .dg-grid { display: flex; flex-wrap: wrap; gap: 3px; }
@@ -1640,6 +1656,7 @@ body.folding .hero-readout { opacity: 0.4; transition: opacity 0.16s ease; }
   .action-row.enter > *, .seat.acting .seat-marker, .seat.winner,
   .screen, .screen-body > *, .dg-strip.enter .dg-seat,
   .fold-hint.loud, .streak-label.bump { animation: none; }
-  .dg-fill, .slot-inner, .seat, .seat-bet, .seat-marker, .level-fill { transition: none; }
+  .dg-odds-bar i, .slot-inner, .seat, .seat-bet, .seat-marker,
+  .level-fill { transition: none; }
   .fold-hint.loud { opacity: 1; }
 }

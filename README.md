@@ -125,10 +125,19 @@ Those get a small diagram built from the hand you are in, above the words:
   for the current round, left to right, with you highlighted and the dealer
   badge where it actually is. Preflop and postflop have different captions,
   because the order genuinely flips.
-- **Pot odds and equity** draw one bar: how often you get there, against a
-  tick marking the price you are being offered. Green past the tick means
-  call. It is the same bar the coach shows under a banner about a price, and
-  a test asserts the two can never print different numbers.
+- **Pot odds and equity** draw two bars on one scale, one above the other:
+  how often this hand comes in, and how often it has to come in for the call
+  to break even. The longer bar wins, and a line under them says which and
+  why. It is the same picture the coach shows under a banner about a price,
+  and tests assert the numbers can never disagree with the coach, that the
+  two bars can never disagree with the verdict beside them, and that the pot
+  drawn is the pot you would be playing for with your own call included.
+
+  This was one bar with a tick on it. The label naming the tick sat at the
+  far right of the row while the tick itself was down at the left, so nothing
+  connected the two, and four fifths of the track was empty because both
+  numbers live near the bottom of the scale. Two bars you can compare by
+  length say the same thing without a legend.
 - **Outs and every kind of draw** draw all 47 unseen cards with yours filled
   in. Nine out of forty seven is a very different feeling as a picture.
 - **Any hand name** draws the nine rankings with yours marked.

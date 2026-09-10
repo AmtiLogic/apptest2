@@ -1056,30 +1056,54 @@ function orderDiagram(data) {
   return box;
 }
 
+/**
+ * Two bars on one scale, one above the other: how often this hand comes in,
+ * and how often it has to come in for the call to break even. The longer bar
+ * wins, and that is the whole decision.
+ *
+ * This used to be a single bar with a tick on it, and the label naming the
+ * tick sat at the far right of the row while the tick itself was down at the
+ * left. Nothing said what the line was for.
+ */
 function oddsDiagram(data) {
   const box = el('div', 'dg dg-odds' + (data.good ? ' good' : ' bad'));
-  const track = el('div', 'dg-track');
-  if (data.equity !== null) {
-    const fill = el('div', 'dg-fill');
-    const target = Math.min(100, data.equity) + '%';
-    fill.style.width = '0%';
-    track.appendChild(fill);
-    // Grown on the next frame so the bar visibly reaches for the price.
-    requestAnimationFrame(() => { fill.style.width = target; });
-  }
-  const tick = el('div', 'dg-tick');
-  tick.style.left = Math.min(100, data.need) + '%';
-  track.appendChild(tick);
-  box.appendChild(track);
+  const grid = el('div', 'dg-odds-grid');
 
-  const legend = el('div', 'dg-legend');
-  legend.appendChild(el('span', 'dg-have',
-    data.equity === null ? 'no draw' : 'you get there ' + data.equity + '%'));
-  legend.appendChild(el('span', 'dg-need', 'need ' + data.need + '%'));
-  box.appendChild(legend);
+  // One grid for both rows, so the two bars start and end on the same pixels
+  // and their lengths can honestly be compared.
+  const addRow = (name, percent, className) => {
+    grid.appendChild(el('span', 'dg-odds-name', name));
+    const bar = el('span', 'dg-odds-bar ' + className);
+    const fill = el('i');
+    const target = Math.max(1, Math.min(100, percent)) + '%';
+    fill.style.width = reducedMotion ? target : '0%';
+    bar.appendChild(fill);
+    if (!reducedMotion) requestAnimationFrame(() => { fill.style.width = target; });
+    grid.appendChild(bar);
+    grid.appendChild(el('span', 'dg-odds-num ' + className, percent + '%'));
+  };
+
+  if (data.equity !== null) addRow('You get there', data.equity, 'have');
+  addRow('You need', data.need, 'need');
+  box.appendChild(grid);
+
+  const verdict = el('div', 'dg-odds-verdict');
+  if (data.equity === null) {
+    verdict.textContent = 'No draw, so there is no number to put against that price.';
+  } else {
+    verdict.textContent = data.good
+      ? 'Worth it. ' + data.equity + ' in 100 clears the ' + data.need + ' you need.'
+      : 'Not worth it. ' + data.equity + ' in 100 is under the ' + data.need + ' you need.';
+  }
+  box.appendChild(verdict);
+
+  // How to read two bars. The arithmetic behind the numbers is already in the
+  // sentence above this picture in both places it appears, so what is left to
+  // say is the rule for comparing them.
   box.appendChild(el('div', 'dg-caption',
-    'Pay ' + data.toCall + ' to win ' + data.pot + '.' +
-    (data.equity === null ? '' : (data.good ? ' Worth it.' : ' Not worth it.'))));
+    data.equity === null
+      ? 'Pay ' + data.toCall + ' to play for ' + data.pot + '.'
+      : 'Top bar longer than the bottom one means the call makes money over time. Shorter means it loses.'));
   return box;
 }
 
