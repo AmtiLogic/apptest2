@@ -113,6 +113,14 @@ Those get a small diagram built from the hand you are in, above the words:
   raised, it is theirs, because that is the question a range answers. Not
   what do I have, but what could they have. With nobody in yet it is your
   own opening range from the seat you are sitting in.
+
+  Every hand appears twice, which is the one thing about this grid that
+  catches people out. Queen jack above the diagonal is the suited version and
+  below it is the offsuit one, and they are different hands: the suited one
+  makes flushes, so it stays in ranges the offsuit one has already dropped
+  out of. Both halves are labelled on the grid, and tapping any square says
+  what it is and whether it is in, so you never have to remember which half
+  you are looking at.
 - **Position, the button, the blinds, under the gun** draw the running order
   for the current round, left to right, with you highlighted and the dealer
   badge where it actually is. Preflop and postflop have different captions,

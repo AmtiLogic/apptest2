@@ -7,7 +7,9 @@
 // data. Drawing it is ui.js's job, so this file stays testable without a DOM.
 
 import { positionName, chartPosition, POSITION_FULL_NAMES } from './engine.js';
-import { handCode, handWords, RANKS, RANK_CHARS, RANK_FACES } from './cards.js';
+import {
+  handCode, handWords, RANKS, RANK_CHARS, RANK_FACES, RANK_WORDS, RANK_WORDS_PLURAL
+} from './cards.js';
 import {
   classifyMade, classifyDraws, outsToEquity, CATEGORY_LADDER,
   OPENING_CHARTS, expandRange
@@ -163,9 +165,14 @@ export function rangeData(table, seat) {
   if (!hero) return null;
   const n = table.players.length;
 
-  const raiser = table.lastAggressor;
-  const showTheirs = table.street === 'preflop' && raiser !== undefined &&
-    raiser >= 0 && raiser !== seat && table.players[raiser];
+  // Who raised. On later streets lastAggressor is cleared when the betting
+  // round closes, so fall back to whoever raised before the flop: their range
+  // is still the one the hand is being played against.
+  const raiser = table.lastAggressor !== undefined && table.lastAggressor >= 0
+    ? table.lastAggressor
+    : table.preflopAggressor;
+  const showTheirs = raiser !== undefined && raiser >= 0 && raiser !== seat &&
+    !!table.players[raiser] && !table.players[raiser].folded;
   const owner = showTheirs ? raiser : seat;
 
   const chart = chartPosition(positionName(owner, table.buttonIndex, n));
@@ -201,7 +208,13 @@ export function rangeData(table, seat) {
       }
       const inRange = set.has(code);
       if (inRange) combos += weight;
-      cells.push({ code, kind, inRange, mine: code === mine });
+      // Two squares can read as the same two ranks and behave differently,
+      // because one of them is suited and the other is not. Every square
+      // carries the words for what it actually is.
+      const label = kind === 'pair'
+        ? 'a pair of ' + RANK_WORDS_PLURAL[order[i]]
+        : RANK_WORDS[hi] + ' ' + RANK_WORDS[lo] + (kind === 'suited' ? ' suited' : ' offsuit');
+      cells.push({ code, kind, inRange, label, mine: code === mine });
     }
   }
 

@@ -673,6 +673,10 @@ export const TERMS = {
       {
         text: 'Both your cards are the same suit, so a [[flush]] is possible. Written with an s, as AKs.',
         example: 'King and nine of hearts.'
+      },
+      {
+        label: 'Why it matters',
+        text: 'It is the same two ranks either way, so the [[flush]] is free extra value. Queen jack suited is worth opening from seats queen jack [[offsuit]] is not.'
       }
     ]
   },
@@ -683,6 +687,10 @@ export const TERMS = {
       {
         text: 'Your cards are different suits, so no [[flush]] using both. Written with an o, as AKo.',
         example: 'Ace of clubs, queen of hearts.'
+      },
+      {
+        label: 'Worth less than suited',
+        text: 'The same ranks [[suited]] make flushes and these do not, so the offsuit version drops out of a [[range]] first. It is the weaker of the two.'
       }
     ]
   },

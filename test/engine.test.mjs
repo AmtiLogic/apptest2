@@ -1189,6 +1189,41 @@ test('the range grid is the chart for the seat it says it is', () => {
   assert.equal(marked[0].code, 'A7o');
 });
 
+test('suited and offsuit are separate squares that can disagree', () => {
+  // Two squares read as the same two ranks. They are not the same hand, and a
+  // grid that lit them together would be teaching the opposite of the truth.
+  const t = table(6, 41);
+  startHand(t);
+  t.players[0].hole = parseCards('Qh Jd');
+  const data = rangeData(t, 0);
+  const by = {};
+  for (const cell of data.cells) by[cell.code] = cell;
+
+  assert.equal(by.QJs.kind, 'suited');
+  assert.equal(by.QJo.kind, 'offsuit');
+  assert.notEqual(by.QJs, by.QJo);
+  assert.equal(by.QJs.label, 'queen jack suited');
+  assert.equal(by.QJo.label, 'queen jack offsuit');
+  assert.equal(by.QQ.label, 'a pair of queens');
+
+  // From the early seats the suited one is opened and the offsuit one is not.
+  // If this ever flips, the charts have a bug, not the picture.
+  for (const seat of ['UTG', 'HJ']) {
+    assert.equal(inRange('QJs', OPENING_CHARTS[seat]), true, seat + ' should open QJs');
+    assert.equal(inRange('QJo', OPENING_CHARTS[seat]), false, seat + ' should not open QJo');
+  }
+  // No chart anywhere may hold an offsuit hand while dropping its suited twin.
+  for (const [seat, chart] of Object.entries(OPENING_CHARTS)) {
+    for (const code of expandRange(chart)) {
+      if (!code.endsWith('o')) continue;
+      assert.equal(
+        inRange(code.slice(0, 2) + 's', chart), true,
+        seat + ' opens ' + code + ' but not the suited version of it'
+      );
+    }
+  }
+});
+
 test('the range grid shows the raiser rather than you once somebody raises', () => {
   const t = table(6, 31);
   startHand(t);

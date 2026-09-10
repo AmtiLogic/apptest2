@@ -965,6 +965,7 @@ function rangeDiagram(data) {
   who.appendChild(el('span', 'dg-range-pct', data.percent + '%'));
   box.appendChild(who);
 
+  const wrap = el('div', 'dg-chart-wrap');
   const grid = el('div', 'dg-chart');
   // A blank corner, then the rank across the top of each column.
   grid.appendChild(el('div', 'dg-gh corner'));
@@ -977,15 +978,41 @@ function rangeDiagram(data) {
         (cell.inRange ? ' in' : '') +
         (cell.kind === 'pair' ? ' pair' : '') +
         (cell.mine ? ' mine' : ''));
-      node.title = cell.code;
+      node.dataset.code = cell.code;
+      node.dataset.label = cell.label;
+      node.dataset.in = cell.inRange ? 'yes' : 'no';
       grid.appendChild(node);
     }
   }
-  box.appendChild(grid);
+  wrap.appendChild(grid);
+  // Which half of the grid you are looking at is the whole difference between
+  // two squares that read as the same two ranks, so it is written on the grid
+  // rather than left to a sentence underneath.
+  wrap.appendChild(el('span', 'dg-region suited', 'same suit'));
+  wrap.appendChild(el('span', 'dg-region offsuit', 'mixed suits'));
+  box.appendChild(wrap);
+
+  // Tapping a square says what it is out loud, which is the fastest way to
+  // find out why one of a pair of squares is lit and the other is not.
+  const readout = el('div', 'dg-chart-readout', 'Tap any square to read it.');
+  box.appendChild(readout);
+  grid.addEventListener('click', (event) => {
+    const node = event.target.closest ? event.target.closest('.dg-cell') : null;
+    if (!node) return;
+    for (const other of grid.querySelectorAll('.dg-cell.picked')) other.classList.remove('picked');
+    node.classList.add('picked');
+    clear(readout);
+    readout.classList.add('read');
+    readout.classList.toggle('yes', node.dataset.in === 'yes');
+    readout.appendChild(el('strong', null, capitalizeFirst(node.dataset.label)));
+    readout.appendChild(document.createTextNode(
+      ' (' + node.dataset.code + '). ' +
+      (node.dataset.in === 'yes' ? 'In the range.' : 'Not in the range.')));
+  });
 
   const key = el('div', 'dg-range-key');
   key.appendChild(el('span', null,
-    'Read a square off the two ranks: row and column. Pairs run corner to corner, same suit sits above them, mixed suits below.'));
+    'Read a square off its row and column. The same two ranks sit in the grid twice: once above the diagonal for when they share a suit, once below it for when they do not. Suited is the better hand, so it is in ranges the offsuit one is not.'));
   box.appendChild(key);
 
   if (data.mineWords) {
@@ -1001,6 +1028,10 @@ function rangeDiagram(data) {
 
   box.appendChild(el('div', 'dg-caption', data.caption));
   return box;
+}
+
+function capitalizeFirst(text) {
+  return String(text).charAt(0).toUpperCase() + String(text).slice(1);
 }
 
 function orderDiagram(data) {

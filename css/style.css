@@ -1036,6 +1036,26 @@ body.folding .hero-readout { opacity: 0.4; transition: opacity 0.16s ease; }
   font-variant-numeric: tabular-nums;
 }
 
+.dg-chart-wrap { position: relative; }
+
+/* Which half of the grid you are in, written on the grid. Sat over a dark
+   chip so it stays legible whether the squares under it are lit or not. */
+.dg-region {
+  position: absolute;
+  pointer-events: none;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  background: rgba(0, 0, 0, 0.72);
+  padding: 2px 5px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.dg-region.suited { top: 20%; right: 4%; }
+.dg-region.offsuit { bottom: 12%; left: 10%; }
+
 .dg-chart {
   display: grid;
   /* minmax(0, 1fr) rather than 1fr: a grid item will not shrink below its own
@@ -1074,6 +1094,24 @@ body.folding .hero-readout { opacity: 0.4; transition: opacity 0.16s ease; }
   position: relative;
   z-index: 1;
 }
+.dg-chart .dg-cell.picked {
+  box-shadow: 0 0 0 2px var(--chip);
+  position: relative;
+  z-index: 2;
+}
+.dg-chart .dg-cell.mine.picked { box-shadow: 0 0 0 2px var(--chip); }
+
+/* What the square you just tapped actually is. */
+.dg-chart-readout {
+  margin-top: 10px;
+  min-height: 18px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink-faint);
+}
+.dg-chart-readout.read { color: var(--ink-dim); }
+.dg-chart-readout strong { color: var(--mistake); font-weight: 600; }
+.dg-chart-readout.yes strong { color: var(--accent); }
 
 .dg-range-key {
   margin-top: 9px;
