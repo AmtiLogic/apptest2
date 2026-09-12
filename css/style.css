@@ -44,6 +44,11 @@ html, body {
   margin: 0;
   padding: 0;
   height: 100%;
+  /* 100% resolves against the small viewport on iOS, so when the browser
+     chrome hides, the page stays short and leaves a band of dead black under
+     the controls. dvh follows the viewport that is actually on screen. The
+     100% above is the fallback for anything that does not know dvh. */
+  height: 100dvh;
   background: var(--bg);
   color: var(--ink);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -330,14 +335,27 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
 /* ----------------------------------------------------------- board / pot */
 
 .middle {
-  flex: 1 6 auto;
+  /* The table does not grow to swallow spare height. It sits under the seats
+     at its own size and the surplus falls below it, as one gap between the
+     table and the commentary, rather than as two large voids stranding the
+     board in the middle of the screen. On a short screen there is no surplus
+     and the auto margin is nothing. */
+  /* Shrinks last, not first. When the screen runs out of room the coach is
+     the thing that gives way, because it scrolls and the board cannot: a
+     squeezed board just overflows its own padding and touches the seats. */
+  flex: 0 1 auto;
+  margin-bottom: auto;
   min-height: 76px;
   /* A floor under the board's breathing room. Above this the middle is the
      elastic part of the table and absorbs whatever is left over. */
   padding: var(--v-tight) 0;
   display: flex;
   align-items: center;
-  justify-content: center;
+  /* The board hugs the left rail and the pot the right one, so this row lines
+     up with every other block on the screen. Centring it left the board inset
+     by a different amount at every width, which is what made the table look
+     like it was on its own grid. */
+  justify-content: space-between;
   gap: 12px;
 }
 
@@ -537,7 +555,7 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
 body.many-seats .coach-banner { max-height: 26vh; }
 
 .coach-banner {
-  flex: 0 1 auto;
+  flex: 0 6 auto;
   margin: var(--v-step) 0 0;
   padding: 11px 13px;
   border-radius: var(--radius-lg);

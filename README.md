@@ -234,12 +234,26 @@ The breakpoint for that trim is 620px tall, not 700px. A 664px iPhone 13 is
 not a small screen, and treating it like an SE was why the most common phone
 felt packed.
 
-The elastic part of the table is the middle, where the board sits. It absorbs
-whatever is left over, so a screen with room to spare puts that room around
-the board rather than anywhere it would be noticed. The board is capped in
-width because board width drives board height through the card aspect ratio,
-and an uncapped board on a wide phone eats the vertical budget and ends up
-touching the seats.
+Every block on the screen shares one side rail: the seats, the board and pot
+row, the scoreboard, the commentary, the coach, your seat and the buttons all
+start and end on the same two pixels. The board row gets there by hugging the
+left rail with the pot on the right rail, rather than being centred, which
+used to inset it by a different amount at every width and made the table look
+like it was on a grid of its own.
+
+Spare height does not pool around the board. The table sits under the seats
+at its own size and the surplus falls below it as one gap between the table
+and the commentary, so a tall phone reads as a table with felt under it
+rather than as a board stranded between two voids.
+
+When height runs out the coach is what gives way, because it scrolls and the
+board cannot: a squeezed board just overflows its own padding and ends up
+touching the seats. The board is also capped in width, because board width
+drives board height through the card aspect ratio.
+
+Height is `100dvh` with `100%` as the fallback. On iOS `100%` resolves
+against the small viewport, so once the browser chrome hides, the page stays
+short and leaves a band of dead black under the controls.
 
 ## Motion
 
