@@ -210,6 +210,10 @@ export function renderSeats(table, options = {}) {
     }
   }
   dom.opponents.classList.toggle('many', table.players.length > 6);
+  // Nine seats wrap onto two rows, which costs the felt a whole row of
+  // height. The stylesheet needs to know at the body level so the parts that
+  // can give way know to give way sooner.
+  document.body.classList.toggle('many-seats', table.players.length > 6);
   for (const player of table.players) {
     if (player.isHuman) continue;
     updateSeat(seatCache.nodes.get(player.index), table, player, options);

@@ -51,10 +51,11 @@
 
     <div id="coach-banner" class="coach-banner" role="status" aria-live="polite" hidden></div>
 
+    <!-- Your seat sits above the controls, so the table reads down the screen
+         from the other players to the board to you, and the buttons are a
+         separate thing underneath rather than a wall between you and it. -->
     <section class="hero-zone">
-      <div id="action-area" class="action-area"></div>
-
-      <div class="hero-bottom">
+      <div class="hero-seat">
         <div class="hero-cards-wrap">
           <div id="fold-hint" class="fold-hint" aria-hidden="true">↑ Swipe up to fold</div>
           <div id="hero-cards" class="hero-cards" aria-label="Your cards"></div>
@@ -62,6 +63,8 @@
         </div>
         <div id="hero-readout" class="hero-readout" aria-label="What you have"></div>
       </div>
+
+      <div id="action-area" class="action-area"></div>
     </section>
   </main>
 

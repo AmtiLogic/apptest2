@@ -177,6 +177,22 @@ the ones that cost chips. Check or call sits on the left, bet or raise on the
 right at a sensible size already filled in, and the arrow beside it opens the
 slider when you want a different number.
 
+## Where you sit
+
+The screen reads down as one table: the other players across the top, the
+board and the pot in the middle, then your own seat, and the controls
+underneath that.
+
+Your cards used to be below the buttons, which put a row of controls between
+you and the table and left your hand looking like part of the keypad rather
+than a seat in the game. They sit above the buttons now, next to the board,
+with the same furniture every other seat has: your stack, your dealer or
+blind marker, what you are holding. The buttons are a separate thing
+underneath, which is also where a thumb wants them.
+
+Swiping a fold now throws your cards up toward the middle of the table, which
+is where cards actually go when you muck them.
+
 Once the hand can no longer ask you anything, a **Skip hand** button sits
 next to the waiting line. One press plays out everything that is left: the
 rest of this betting round, every street after it, and the showdown, stopping

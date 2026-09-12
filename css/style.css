@@ -531,6 +531,11 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
 
 /* --------------------------------------------------------- coach banner */
 
+/* With nine seats the opponents take two rows, so the coach gives up its
+   room sooner rather than pushing the controls off the bottom. The banner
+   scrolls; the buttons cannot. */
+body.many-seats .coach-banner { max-height: 26vh; }
+
 .coach-banner {
   flex: 0 1 auto;
   margin: var(--v-step) 0 0;
@@ -628,10 +633,11 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
 
 .hero-zone { flex: 0 0 auto; padding: var(--v-block) 0 var(--pad); }
 
-.action-area { min-height: var(--tap); margin-bottom: var(--pad); }
-/* Room for the swipe hint, which sits above the cards: 8px clear of the
-   buttons and 8px clear of the cards, rather than wedged between them. */
-body.can-fold .action-area { margin-bottom: 30px; }
+.action-area { min-height: var(--tap); margin-top: var(--pad); }
+/* The swipe hint sits above the cards, and the cards are now the top of this
+   block, so the room it needs comes off the top of the whole zone rather than
+   out of the gap under the buttons. */
+body.can-fold .hero-zone { padding-top: 30px; }
 .action-row { display: flex; gap: 8px; align-items: stretch; }
 
 .action-row.enter > * { animation: act-in 0.34s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
@@ -798,7 +804,7 @@ input[type="range"]::-moz-range-thumb {
 
 /* hero cards and readout */
 
-.hero-bottom {
+.hero-seat {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
@@ -1619,14 +1625,14 @@ body.folding .hero-readout { opacity: 0.4; transition: opacity 0.16s ease; }
   .coach-banner { max-height: 30vh; }
   .topbar { padding: 8px var(--pad) 10px; }
   .hero-zone { padding: var(--v-block) 0 9px; }
-  .action-area { margin-bottom: 10px; }
+  .action-area { margin-top: 10px; }
   /* The hint keeps 6px clear on each side here instead of 8. */
-  body.can-fold .action-area { margin-bottom: 24px; }
+  body.can-fold .hero-zone { padding-top: 24px; }
   .fold-hint { top: -18px; }
   /* Between hands the action row is a single Next button, so it needs less
      breathing room than a live decision does. */
   body.showing-result .hero-zone { padding-top: 8px; }
-  body.showing-result .action-area { margin-bottom: 10px; }
+  body.showing-result .action-area { margin-top: 10px; }
 }
 
 /* Narrow phones. Everything in the top bar has to fit across 320px, and at
