@@ -322,6 +322,25 @@ Height is `100dvh` with `100%` as the fallback. On iOS `100%` resolves
 against the small viewport, so once the browser chrome hides, the page stays
 short and leaves a band of dead black under the controls.
 
+## The table
+
+The play area carries a faint felt: a soft pool of light over the top of the
+table where the players and the board are, and a fine grain under it. The
+grain is two dot grids at sizes that do not divide into each other, because
+one grid on its own reads as a screen door rather than as cloth.
+
+Both are backgrounds on the play area rather than an element of their own, so
+nothing new joins the stacking order and the cards still fly over the top of
+everything exactly as they did. Nothing in the pattern is positioned relative
+to the board, because this area doubles in height between the smallest phone
+and the largest and anything anchored would land somewhere different on each
+of them. A first attempt drew the arc of a rail and it came out as two stray
+lines behind the coach, which is what that constraint looks like when you
+ignore it.
+
+Asking your phone for more contrast turns the pattern off. Texture behind
+text is the first thing that should go.
+
 ## Motion
 
 The table is animated to make the game legible, not to decorate it. Community

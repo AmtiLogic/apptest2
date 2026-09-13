@@ -162,6 +162,29 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
   flex-direction: column;
   padding: 0 var(--pad);
   overflow: hidden;
+
+  /* A table, faintly. Two ideas and nothing else: a light hanging over the
+     middle, and the weave of the cloth under it. The weave is two dot grids
+     at sizes that do not divide into each other, because one grid on its own
+     reads as a screen door rather than as cloth.
+
+     Painted as backgrounds rather than as an element, so nothing new joins
+     the stacking order and the cards still fly over the top of it. Nothing
+     here is placed relative to the board, because the height of this area
+     changes by a factor of two between phones and anything positioned would
+     land somewhere different on each of them. */
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.016) 0.6px, transparent 0),
+    radial-gradient(circle at 2px 3px, rgba(255, 255, 255, 0.013) 0.6px, transparent 0),
+    radial-gradient(122% 54% at 50% 25%, rgba(61, 220, 151, 0.055), transparent 71%);
+  background-size: 7px 7px, 11px 11px, auto;
+  background-repeat: repeat, repeat, no-repeat;
+}
+
+/* Anybody who has asked their phone for more contrast gets a plain black
+   table. Texture behind text is the first thing to go. */
+@media (prefers-contrast: more) {
+  .felt { background-image: none; }
 }
 
 /* ------------------------------------------------------------- opponents */
