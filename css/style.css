@@ -196,11 +196,11 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
   padding: 0 var(--pad);
   overflow: hidden;
 
-  /* The four suits, tiled faintly across the table, with a soft light over
-     the middle of it. The tile is a half drop rather than a straight grid,
-     which is how a card room carpet is laid out and why it reads as a pattern
-     rather than as rows. Anything crossing the edge of the tile is drawn on
-     both sides of it so the repeat is seamless.
+  /* The same rings that are printed on the backs of the cards, tiled across
+     the table. The point is that the table and the deck are one set rather
+     than two unrelated decorations: it is the card back motif, opened out and
+     laid flat. Every ring crossing the edge of the tile is drawn on the far
+     side of it too, so the repeat is seamless.
 
      An inline SVG rather than an image file: it stays crisp at any pixel
      density, costs one line of CSS, and there is nothing extra to fetch or to
@@ -208,11 +208,11 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
      nothing new joins the stacking order and the cards still fly over the top
      of everything. */
   background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='100' height='100'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cg transform='translate(25 24) rotate(-8) scale(1.05) translate(-12 -12)'%3E%3Cpath d='M12 3.2c0 0-6.8 6.1-6.8 10.2a3.9 3.9 0 0 0 6 3.2c-.2 1.8-1 3.2-2.3 4.1V21.8h6.2v-1.1c-1.3-.9-2.1-2.3-2.3-4.1a3.9 3.9 0 0 0 6-3.2C18.8 9.3 12 3.2 12 3.2Z'/%3E%3C/g%3E%3Cg transform='translate(75 24) rotate(7) scale(1.05) translate(-12 -12)'%3E%3Cpath d='M12 20.8S3.6 14.6 3.6 9.3a4.3 4.3 0 0 1 8.4-1.9 4.3 4.3 0 0 1 8.4 1.9C20.4 14.6 12 20.8 12 20.8Z'/%3E%3C/g%3E%3Cg transform='translate(50 74) rotate(-5) scale(1.05) translate(-12 -12)'%3E%3Cpath d='M12 2.6 19.6 12 12 21.4 4.4 12Z'/%3E%3C/g%3E%3Cg transform='translate(0 74) rotate(6) scale(1.05) translate(-12 -12)'%3E%3Cpath d='M12 2.6a3.8 3.8 0 0 1 2.9 6.2 3.8 3.8 0 1 1 .8 7.2 4.1 4.1 0 0 1-3-1.4c.1 1.9.9 3.4 2.2 4.5v2.7H9.1v-2.7c1.3-1.1 2.1-2.6 2.2-4.5a4.1 4.1 0 0 1-3 1.43.8 3.8 0 1 1 .8-7.2A3.8 3.8 0 0 1 12 2.6Z'/%3E%3C/g%3E%3Cg transform='translate(100 74) rotate(6) scale(1.05) translate(-12 -12)'%3E%3Cpath d='M12 2.6a3.8 3.8 0 0 1 2.9 6.2 3.8 3.8 0 1 1 .8 7.2 4.1 4.1 0 0 1-3-1.4c.1 1.9.9 3.4 2.2 4.5v2.7H9.1v-2.7c1.3-1.1 2.1-2.6 2.2-4.5a4.1 4.1 0 0 1-3 1.43.8 3.8 0 1 1 .8-7.2A3.8 3.8 0 0 1 12 2.6Z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'%3E%3Cg fill='none' stroke='%23ffffff' stroke-opacity='0.075' stroke-width='1.15'%3E%3Ccircle cx='30' cy='30' r='21'/%3E%3Ccircle cx='30' cy='30' r='13'/%3E%3Ccircle cx='30' cy='30' r='5.5'/%3E%3Ccircle cx='0' cy='0' r='21'/%3E%3Ccircle cx='0' cy='0' r='13'/%3E%3Ccircle cx='60' cy='0' r='21'/%3E%3Ccircle cx='60' cy='0' r='13'/%3E%3Ccircle cx='0' cy='60' r='21'/%3E%3Ccircle cx='0' cy='60' r='13'/%3E%3Ccircle cx='60' cy='60' r='21'/%3E%3Ccircle cx='60' cy='60' r='13'/%3E%3C/g%3E%3Cg fill='%23ffffff' fill-opacity='0.075'%3E%3Ccircle cx='30' cy='30' r='1.3'/%3E%3Ccircle cx='0' cy='0' r='1.3'/%3E%3Ccircle cx='60' cy='0' r='1.3'/%3E%3Ccircle cx='0' cy='60' r='1.3'/%3E%3Ccircle cx='60' cy='60' r='1.3'/%3E%3C/g%3E%3C/svg%3E"),
     radial-gradient(122% 54%
       at calc(50% + var(--tilt-x) * 11%) calc(25% + var(--tilt-y) * 9%),
       rgba(61, 220, 151, 0.05), transparent 71%);
-  background-size: 64px 64px, auto;
+  background-size: 60px 60px, auto;
   background-repeat: repeat, no-repeat;
   background-position:
     calc(var(--tilt-x) * -13px) calc(var(--tilt-y) * -9px),

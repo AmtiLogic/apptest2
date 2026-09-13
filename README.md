@@ -325,11 +325,11 @@ short and leaves a band of dead black under the controls.
 
 ## The table
 
-The play area carries the four suits, tiled faintly across it, with a soft
-light over the middle. The tile is a half drop rather than a straight grid,
-which is how a card room carpet is laid out and why it reads as a pattern
-rather than as rows. Anything crossing the edge of the tile is drawn on both
-sides of it, so the repeat is seamless.
+The play area carries the same rings that are printed on the backs of the
+cards, tiled across it, with a soft light over the middle. The point is that
+the table and the deck are one set rather than two unrelated decorations: it is
+the card back motif, opened out and laid flat. Every ring crossing the edge of
+the tile is drawn on the far side of it too, so the repeat is seamless.
 
 It is an inline SVG in the stylesheet rather than an image file. It stays
 crisp at any pixel density, it costs about a kilobyte, and there is nothing
@@ -343,6 +343,12 @@ smallest phone and the largest and anything anchored would land somewhere
 different on each of them. A first attempt drew the arc of a rail and it came
 out as two stray lines behind the coach, which is what that constraint looks
 like when you ignore it.
+
+Two earlier patterns did not survive. A dot grain was texture nobody could
+name, and a scatter of the four suits was legible but was decoration sitting
+next to the cards rather than belonging with them. Candidates are drawn at full
+strength and compared as a sheet before anything is made faint, because a
+pattern that is wrong is wrong at every opacity.
 
 Asking your phone for more contrast turns the pattern off. Texture behind
 text is the first thing that should go.
