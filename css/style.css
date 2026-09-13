@@ -71,6 +71,32 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
 
 /* ---------------------------------------------------------------- top bar */
 
+/* The climb, in the top bar. A pip per step, how much of this one is left,
+   and the only number that really matters: what your stack is worth in big
+   blinds, because the blinds are what kill you. */
+.run-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--ink-faint);
+  font-weight: 600;
+}
+.run-line[hidden] { display: none; }
+.run-pips { display: flex; gap: 3px; align-items: center; }
+.run-pip {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--line);
+}
+.run-pip.done { background: var(--ink-dim); }
+.run-pip.now { background: var(--accent); box-shadow: 0 0 6px rgba(61, 220, 151, 0.6); }
+.run-bb { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.run-bb.low { color: var(--mistake); }
+
+
 .topbar {
   flex: 0 0 auto;
   display: flex;
@@ -1574,6 +1600,145 @@ body.folding .hero-readout { opacity: 0.4; transition: opacity 0.16s ease; }
 .opponents.many .seat-action { font-size: 8px; line-height: 10px; }
 .opponents.many .seat-bet { font-size: 10px; padding: 1px 7px; }
 
+/* ------------------------------------------------------------------ runs */
+
+/* A screen the run is waiting on has no way out of it. */
+.screen.sticky .screen-close { display: none; }
+
+.step-head { margin-bottom: 4px; }
+.step-name { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+.step-focus {
+  margin-top: 3px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.step-brief { margin: 9px 0 0; font-size: 14px; color: var(--ink-dim); line-height: 1.45; }
+.step-warn { margin: 9px 0 0; font-size: 13px; color: var(--mistake); line-height: 1.45; }
+
+.step-facts { display: flex; gap: 8px; margin-top: 14px; }
+.fact {
+  flex: 1 1 0;
+  padding: 11px 8px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  text-align: center;
+}
+.fact-value {
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.fact-label { margin-top: 3px; font-size: 10px; color: var(--ink-faint); }
+
+.pick-card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 14px;
+  margin-bottom: 9px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.pick-card:active { background: var(--surface-high); border-color: rgba(61, 220, 151, 0.45); }
+.pick-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.pick-top strong { font-size: 16px; font-weight: 600; }
+.pick-seats { font-size: 12px; color: var(--accent); font-weight: 700; }
+.pick-note { margin-top: 5px; font-size: 13px; color: var(--ink-dim); line-height: 1.45; }
+
+.debrief {
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+}
+.debrief.mastered { border-color: rgba(61, 220, 151, 0.4); background: rgba(61, 220, 151, 0.06); }
+.debrief-name { font-size: 17px; font-weight: 700; letter-spacing: -0.02em; }
+.debrief-line { margin: 7px 0 0; font-size: 14px; color: var(--ink-dim); line-height: 1.45; }
+.debrief-line.dim { color: var(--ink-faint); }
+.debrief-badge {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.debrief-badge.dim { color: var(--ink-dim); background: var(--surface-high); }
+
+.runover {
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  background: rgba(255, 111, 97, 0.07);
+  border: 1px solid rgba(255, 111, 97, 0.32);
+}
+.runover.won { background: rgba(61, 220, 151, 0.07); border-color: rgba(61, 220, 151, 0.4); }
+.runover-line { font-size: 16px; line-height: 1.45; }
+
+.step-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 14px;
+  margin-bottom: 7px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+}
+.step-row.mastered { border-color: rgba(61, 220, 151, 0.35); }
+.step-row.failed { border-color: rgba(255, 111, 97, 0.3); }
+.step-row-name { font-size: 14px; }
+.step-row-focus { margin-top: 2px; font-size: 11px; color: var(--ink-faint); }
+.step-row-score {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+.step-row.mastered .step-row-score { color: var(--accent); }
+.step-row.failed .step-row-score { color: var(--mistake); }
+
+.next-btn.wide { margin-top: 16px; padding: 0 16px; }
+
+.danger-btn.quiet {
+  color: var(--ink-dim);
+  border-color: var(--line);
+  margin-bottom: 4px;
+}
+
+/* One line per finished run, newest first. */
+.run-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 13px;
+  margin-bottom: 6px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+}
+.run-row.won { border-color: rgba(61, 220, 151, 0.35); }
+.run-row-step { font-size: 13px; }
+.run-row-when { margin-top: 2px; font-size: 11px; color: var(--ink-faint); }
+.run-row-stat {
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+.run-row.won .run-row-stat { color: var(--accent); }
+
 /* Larger screens get more room without changing the layout. */
 @media (min-width: 600px) {
   .felt { max-width: 640px; margin: 0 auto; width: 100%; }
@@ -1642,6 +1807,7 @@ body.folding .hero-readout { opacity: 0.4; transition: opacity 0.16s ease; }
      smallest screen it yields a little sooner and scrolls instead. */
   .coach-banner { max-height: 30vh; }
   .topbar { padding: 8px var(--pad) 10px; }
+  .run-line { margin-top: 2px; font-size: 9px; gap: 6px; }
   .hero-zone { padding: var(--v-block) 0 9px; }
   .action-area { margin-top: 10px; }
   /* The hint keeps 6px clear on each side here instead of 8. */

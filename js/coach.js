@@ -526,10 +526,38 @@ function banner(verdict, text, extra) {
 export function gradeAction(table, seat, action) {
   const spot = readSpot(table, seat);
   action = normalizeAction(action, spot);
+  const result = spot.street === 'preflop'
+    ? (spot.facingRaise ? gradePreflopFacingRaise(spot, action) : gradePreflopFirstIn(spot, action))
+    : gradePostflop(spot, action);
+  if (result) result.concept = conceptOf(spot, result);
+  return result;
+}
+
+/**
+ * Which idea this decision was really about. The grade does not depend on it:
+ * this is so a run can score a step against the one thing that step is for.
+ */
+function conceptOf(spot, result) {
   if (spot.street === 'preflop') {
-    return spot.facingRaise ? gradePreflopFacingRaise(spot, action) : gradePreflopFirstIn(spot, action);
+    // A hand the button opens and the first seat throws away is, by
+    // definition, a decision about where you are sitting. Anything playable
+    // everywhere, or nowhere, is just hand selection.
+    const lateOnly = inRange(spot.code, OPENING_CHARTS.BTN) &&
+      !inRange(spot.code, OPENING_CHARTS.UTG);
+    return lateOnly ? 'position' : 'starting-hands';
   }
-  return gradePostflop(spot, action);
+  // Betting or not betting is yours to get right whatever the board says.
+  if (result.leak === 'missedValue' || result.leak === 'badBluff') return 'aggression';
+  if (result.leak === 'chasedDraw') return 'pot-odds';
+  if (result.leak === 'paidOffTooLight') return 'board-reading';
+  if (spot.toCall > 0) {
+    // Facing a bet with a draw, or with nothing yet, is a question about the
+    // price of carrying on. Facing one with a hand already made is a question
+    // about whether that hand is any good on this board.
+    const hasHand = spot.made && spot.made.tier >= TIER.MEDIUM;
+    return hasHand ? 'board-reading' : 'pot-odds';
+  }
+  return 'aggression';
 }
 
 // The engine accepts a few equivalent shapes. Reduce them to check, call,

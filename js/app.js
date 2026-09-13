@@ -6,20 +6,27 @@ import { makeRng } from './cards.js';
 import {
   createTable, startHand, legalActions, applyAction, positionName
 } from './engine.js';
-import { buildSeats, botAction, personalityFor } from './bots.js';
+import { buildSeats, buildRunSeats, botAction, personalityFor } from './bots.js';
 import { gradeAction, holdingReadout, handTermSlug, LEAKS } from './coach.js';
 import { searchTerms, allTerms, plainText } from './glossary.js';
 import { liveNote } from './live.js';
 import { diagramData, oddsData } from './diagrams.js';
+import {
+  SECTORS, HANDS_PER_SECTOR, CONCEPTS, STARTING_STACK, newRun, sectorOf,
+  handsLeftInSector, tableChoices, recordDecision, advanceSector, bustRun,
+  runRecord, addRunRecord, historySummary
+} from './run.js';
 import * as ui from './ui.js';
 
 const STORAGE_KEY = 'holdem-coach-v1';
 const GAME_KEY = 'holdem-coach-game-v1';
+// Every run ever finished. Nothing in here is ever rewritten, only added to.
+const RUNS_KEY = 'holdem-coach-runs-v1';
 const HERO_SEAT = 0;
 const BOT_DELAY = 620;
 const REVEAL_UNLOCK = 20;
 
-const DEFAULT_SETTINGS = { tableSize: 6, coach: true, bigBlind: 2 };
+const DEFAULT_SETTINGS = { tableSize: 6, coach: true, bigBlind: 2, mode: 'run' };
 
 // Points reward playing well, never winning chips. A bad call that wins the
 // pot is still a bad call, and a good fold that would have won is still a
@@ -35,6 +42,8 @@ const DEFAULT_PROGRESS = {
   streak: 0,
   bestStreak: 0,
   swipeFolds: 0,
+  // Ideas you have shown you can play, kept across every run you ever make.
+  learned: {},
   termsSeen: {}
 };
 
@@ -55,7 +64,9 @@ const state = {
   table: null,
   timer: null,
   pending: null,
-  sizerOpen: false
+  sizerOpen: false,
+  run: null,
+  history: []
 };
 
 // ---------------------------------------------------------------- storage
@@ -74,9 +85,32 @@ function load() {
     if (saved && saved.progress) {
       Object.assign(state.progress, DEFAULT_PROGRESS, saved.progress);
       state.progress.termsSeen = Object.assign({}, saved.progress.termsSeen || {});
+      state.progress.learned = Object.assign({}, saved.progress.learned || {});
     }
   } catch (err) {
     // A broken or blocked store just means a fresh start.
+  }
+  loadHistory();
+}
+
+// Finished runs live in their own key. Kept separate from everything else so
+// that a change to the shape of the settings or the stats can never cost you
+// the record of what you have played.
+function loadHistory() {
+  try {
+    const raw = localStorage.getItem(RUNS_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    state.history = Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    state.history = [];
+  }
+}
+
+function saveHistory() {
+  try {
+    localStorage.setItem(RUNS_KEY, JSON.stringify(state.history));
+  } catch (err) {
+    // Out of room or blocked. The run still plays, it just is not recorded.
   }
 }
 
@@ -110,7 +144,15 @@ function saveGame() {
   const t = state.table;
   if (!t) return;
   try {
-    const snapshot = { version: 1, tableSize: t.players.length, bigBlind: t.bigBlind, players: [] };
+    const snapshot = {
+      version: 2,
+      tableSize: t.players.length,
+      bigBlind: t.bigBlind,
+      smallBlind: t.smallBlind,
+      startingStack: t.startingStack,
+      run: state.run ? JSON.parse(JSON.stringify(state.run)) : null,
+      players: []
+    };
     for (const field of TABLE_FIELDS) snapshot[field] = t[field];
     for (const p of t.players) {
       const row = {};
@@ -143,13 +185,30 @@ function restoreGame() {
   } catch (err) {
     return false;
   }
-  if (!snapshot || snapshot.version !== 1) return false;
-  if (snapshot.tableSize !== state.settings.tableSize) return false;
-  if (snapshot.bigBlind !== state.settings.bigBlind) return false;
-  if (!Array.isArray(snapshot.players) || snapshot.players.length !== state.settings.tableSize) {
+  if (!snapshot || (snapshot.version !== 1 && snapshot.version !== 2)) return false;
+  if (!Array.isArray(snapshot.board) || !Array.isArray(snapshot.deck)) return false;
+
+  // A run carries its own table shape, so rebuild the table the run was on
+  // before checking anything against it. Without this a reload mid climb
+  // would land you back at the practice table.
+  const savedRun = snapshot.run;
+  if (state.settings.mode === 'run') {
+    if (!savedRun || savedRun.over) return false;
+    if (!Array.isArray(SECTORS) || savedRun.sector >= SECTORS.length) return false;
+    state.run = Object.assign(newRun(0), savedRun);
+    state.run.leaks = Object.assign({}, savedRun.leaks || {});
+    state.run.sectorScores = (savedRun.sectorScores || []).slice();
+    if (!state.run.table) return false;
+    buildRunTable();
+    if (snapshot.tableSize !== state.table.players.length) return false;
+  } else {
+    if (savedRun) return false;
+    if (snapshot.tableSize !== state.settings.tableSize) return false;
+    if (snapshot.bigBlind !== state.settings.bigBlind) return false;
+  }
+  if (!Array.isArray(snapshot.players) || snapshot.players.length !== state.table.players.length) {
     return false;
   }
-  if (!Array.isArray(snapshot.board) || !Array.isArray(snapshot.deck)) return false;
 
   const t = state.table;
   for (const field of TABLE_FIELDS) {
@@ -171,6 +230,10 @@ function restoreGame() {
 // ------------------------------------------------------------------ table
 
 function buildTable() {
+  if (state.settings.mode === 'run' && state.run && state.run.table) {
+    buildRunTable();
+    return;
+  }
   const size = state.settings.tableSize;
   const bigBlind = state.settings.bigBlind;
   const seats = buildSeats(size, 'You');
@@ -181,6 +244,28 @@ function buildTable() {
     bigBlind,
     rng: makeRng((Date.now() ^ 0x5f3759df) >>> 0)
   });
+  ui.resetBoardAnimation();
+}
+
+/**
+ * The table for the step the run is on. The opponents come from the step, the
+ * blinds come from the step, and your stack is whatever you walked in with.
+ * You do not get topped back up: that is what makes it a run.
+ */
+function buildRunTable() {
+  const run = state.run;
+  const sector = sectorOf(run);
+  const choice = run.table;
+  const bigBlind = sector.bigBlind;
+  const seats = buildRunSeats(choice.seats, choice.pool || sector.pool, 'You');
+  state.table = createTable({
+    seats,
+    startingStack: bigBlind * 100,
+    smallBlind: Math.max(1, Math.round(bigBlind / 2)),
+    bigBlind,
+    rng: makeRng((Date.now() ^ 0x5f3759df) >>> 0)
+  });
+  state.table.players[HERO_SEAT].stack = Math.max(0, Math.round(run.stack));
   ui.resetBoardAnimation();
 }
 
@@ -347,6 +432,9 @@ function dealPause(t) {
 }
 
 function recordVerdict(verdict) {
+  // The run scores the step against its own focus; the lifetime stats count
+  // everything, the same as they always have.
+  if (inRun()) recordDecision(state.run, verdict);
   state.stats.decisions += 1;
   state.stats[verdict.verdict] = (state.stats[verdict.verdict] || 0) + 1;
   if (verdict.verdict === 'mistake' && verdict.leak) {
@@ -398,9 +486,189 @@ function finishHand() {
     ui.setMessage('');
     ui.showResult(buildResult(t, t.results));
   }
-  ui.renderNextHand(dealNewHand);
+  if (state.run && !state.run.over) {
+    const run = state.run;
+    run.stack = hero().stack;
+    if (run.stack > run.peakStack) run.peakStack = run.stack;
+    run.handsThisSector += 1;
+    run.handsPlayed += 1;
+    renderRunHud();
+    ui.renderNextHand(nextInRun);
+  } else {
+    ui.renderNextHand(dealNewHand);
+  }
   save();
   saveGame();
+}
+
+// ------------------------------------------------------------------- runs
+
+function inRun() {
+  return state.settings.mode === 'run' && state.run && !state.run.over;
+}
+
+function renderRunHud() {
+  if (!inRun()) {
+    ui.setRunHud(null);
+    return;
+  }
+  const run = state.run;
+  const sector = sectorOf(run);
+  ui.setRunHud({
+    step: run.sector + 1,
+    steps: SECTORS.length,
+    name: sector.name,
+    focus: sector.focusName,
+    handsLeft: handsLeftInSector(run),
+    handsPerSector: HANDS_PER_SECTOR,
+    bigBlind: sector.bigBlind,
+    stack: Math.round(run.stack),
+    blindsLeft: Math.floor(run.stack / sector.bigBlind)
+  });
+}
+
+/** Start a fresh climb. The record of every previous one is untouched. */
+function startRun() {
+  clearTimer();
+  state.run = newRun(state.stats.handsPlayed);
+  clearGame();
+  ui.hideBanner();
+  ui.hideResult();
+  showTableChoice();
+}
+
+/**
+ * What happens after a hand in a run: bust out, move on to the next step, or
+ * deal again. Checked here rather than at the deal so the scoreboard for the
+ * hand that finished you is still on screen behind it.
+ */
+function nextInRun() {
+  const run = state.run;
+  if (!run || run.over) { dealNewHand(); return; }
+  // One chip is still a run. You post what you have, you are all in, and you
+  // either double through or you are done. Ending it early for being short
+  // would take away the only comeback the game has.
+  if (run.stack <= 0) {
+    endRun('ran out of chips');
+    return;
+  }
+  if (handsLeftInSector(run) <= 0) {
+    const step = advanceSector(run);
+    save();
+    if (step.finished) {
+      finishRunRecord();
+      ui.showRunOver(runSummary(), startRun);
+      return;
+    }
+    markLearned(step.score);
+    showStepDebrief(step.score);
+    return;
+  }
+  dealNewHand();
+}
+
+function markLearned(score) {
+  if (!score || !score.mastered) return;
+  if (state.progress.learned[score.focus]) return;
+  state.progress.learned[score.focus] = { at: Date.now(), sector: score.sector };
+  save();
+}
+
+function endRun(reason) {
+  clearTimer();
+  bustRun(state.run, reason);
+  finishRunRecord();
+  ui.showRunOver(runSummary(), startRun);
+}
+
+function finishRunRecord() {
+  const record = runRecord(state.run);
+  state.history = addRunRecord(state.history, record);
+  saveHistory();
+  clearGame();
+  renderRunHud();
+}
+
+function runSummary() {
+  const run = state.run;
+  const leaks = Object.keys(run.leaks)
+    .map((key) => ({ label: LEAKS[key] || key, count: run.leaks[key] }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 3);
+  return {
+    won: !!run.won,
+    endedBy: run.endedBy,
+    step: Math.min(run.sector + 1, SECTORS.length),
+    steps: SECTORS.length,
+    stepName: sectorOf(run).name,
+    hands: run.handsPlayed,
+    stack: Math.max(0, Math.round(run.stack)),
+    peak: Math.round(run.peakStack),
+    decisions: run.decisions,
+    good: run.good,
+    mistake: run.mistake,
+    leaks,
+    steps_detail: run.sectorScores.map((sc) => ({
+      name: sc.name,
+      focusName: sc.focusName,
+      decisions: sc.decisions,
+      mistakes: sc.mistakes,
+      cleared: sc.cleared,
+      mastered: sc.mastered
+    })),
+    history: historySummary(state.history)
+  };
+}
+
+/** The pause between steps: how the last one went, then what is coming. */
+function showStepDebrief(score) {
+  ui.showStepDebrief({
+    finishedName: score.name,
+    focusName: score.focusName,
+    decisions: score.decisions,
+    mistakes: score.mistakes,
+    cleared: score.cleared,
+    mastered: score.mastered,
+    alreadyLearned: !!state.progress.learned[score.focus],
+    stack: Math.round(state.run.stack),
+    next: nextStepBrief()
+  }, showTableChoice);
+}
+
+function nextStepBrief() {
+  const sector = sectorOf(state.run);
+  return {
+    step: state.run.sector + 1,
+    steps: SECTORS.length,
+    name: sector.name,
+    focusName: sector.focusName,
+    brief: sector.brief,
+    bigBlind: sector.bigBlind,
+    blindsLeft: Math.floor(state.run.stack / sector.bigBlind)
+  };
+}
+
+/** The fork in the road: which table you take into the next step. */
+function showTableChoice() {
+  const run = state.run;
+  const sector = sectorOf(run);
+  ui.showTableChoice({
+    step: run.sector + 1,
+    steps: SECTORS.length,
+    name: sector.name,
+    focusName: sector.focusName,
+    brief: sector.brief,
+    bigBlind: sector.bigBlind,
+    stack: Math.round(run.stack),
+    blindsLeft: Math.floor(run.stack / sector.bigBlind),
+    choices: tableChoices(run.sector)
+  }, (choice) => {
+    run.table = { key: choice.key, seats: choice.seats, pool: choice.pool.slice() };
+    buildRunTable();
+    renderRunHud();
+    ui.closeScreen();
+    dealNewHand();
+  });
 }
 
 // Who won, how much, and what the hand did to your stack.
@@ -721,6 +989,41 @@ function openStats() {
       }
     }
 
+    body.appendChild(ui.el('div', 'section-title', 'Ideas you have shown'));
+    const learnedBox = ui.el('div');
+    let learnedAny = false;
+    for (const key of Object.keys(CONCEPTS)) {
+      const got = !!state.progress.learned[key];
+      if (got) learnedAny = true;
+      learnedBox.appendChild(leakRow(CONCEPTS[key], got ? 'learned' : 'not yet',
+        got ? 'var(--good)' : 'var(--ink-faint)'));
+    }
+    body.appendChild(learnedBox);
+    if (!learnedAny) {
+      body.appendChild(ui.el('p', 'empty-note',
+        'Clear a step of a run with almost no mistakes on what that step is about and it is marked here for good.'));
+    }
+
+    body.appendChild(ui.el('div', 'section-title', 'Runs'));
+    const summary = historySummary(state.history);
+    const runGrid = ui.el('div', 'stat-grid');
+    runGrid.appendChild(statCard(summary.runs, 'Runs played'));
+    runGrid.appendChild(statCard(summary.wins, 'Completed'));
+    runGrid.appendChild(statCard(summary.bestStack, 'Best stack'));
+    body.appendChild(runGrid);
+    if (!state.history.length) {
+      body.appendChild(ui.el('p', 'empty-note',
+        'Every run you finish is recorded here and kept. Resetting your stats does not remove them.'));
+    } else {
+      for (const record of state.history.slice(0, 40)) {
+        body.appendChild(runRow(record));
+      }
+      if (state.history.length > 40) {
+        body.appendChild(ui.el('p', 'empty-note',
+          state.history.length + ' runs on record. The most recent forty are listed.'));
+      }
+    }
+
     body.appendChild(ui.el('div', 'section-title', 'Reads on the table'));
     for (const player of state.table.players) {
       if (player.isHuman) continue;
@@ -749,6 +1052,30 @@ function leakRow(name, count, colour) {
   return row;
 }
 
+// One finished run: how far it got, how big it got, and when.
+function runRow(record) {
+  const row = ui.el('div', 'run-row' + (record.won ? ' won' : ''));
+  const left = ui.el('div');
+  const step = Math.min((record.sector || 0) + 1, SECTORS.length);
+  left.appendChild(ui.el('div', 'run-row-step',
+    record.won ? 'Complete' : 'Step ' + step + ' of ' + SECTORS.length + ', ' + (record.sectorName || '')));
+  left.appendChild(ui.el('div', 'run-row-when',
+    record.hands + (record.hands === 1 ? ' hand' : ' hands') + ' \u00b7 ' + whenWords(record.ended || record.at)));
+  row.appendChild(left);
+  row.appendChild(ui.el('div', 'run-row-stat', 'peak ' + (record.peak || 0)));
+  return row;
+}
+
+function whenWords(stamp) {
+  if (!stamp) return 'earlier';
+  const days = Math.floor((Date.now() - stamp) / 86400000);
+  if (days <= 0) return 'today';
+  if (days === 1) return 'yesterday';
+  if (days < 7) return days + ' days ago';
+  const weeks = Math.floor(days / 7);
+  return weeks === 1 ? 'a week ago' : weeks + ' weeks ago';
+}
+
 function botRow(player) {
   const persona = personalityFor(player);
   const played = state.stats.botHands[player.personality] || 0;
@@ -769,18 +1096,29 @@ function botRow(player) {
 function openSettings() {
   ui.openScreen('Setup', (body) => {
     body.appendChild(choiceSetting(
-      'Table size',
-      'Six handed is the standard practice game. Heads up puts you in every hand.',
-      [
-        { label: '6 seats', value: 6 },
-        { label: '9 seats', value: 9 },
-        { label: 'Heads up', value: 2 }
-      ],
-      state.settings.tableSize,
+      'How you play',
+      'A run climbs five tables with the blinds going up at every step and your stack carried the whole way. Bust and it is over. Free play is one endless table that tops you back up.',
+      [{ label: 'Run', value: 'run' }, { label: 'Free play', value: 'free' }],
+      state.settings.mode,
       (value) => {
-        state.settings.tableSize = value;
+        if (value === state.settings.mode) { openSettings(); return; }
+        state.settings.mode = value;
         save();
+        clearTimer();
         clearGame();
+        if (value === 'run') {
+          ui.closeScreen();
+          startRun();
+          return;
+        }
+        // Abandoning a run part way through still records it. Nothing you
+        // played is thrown away.
+        if (state.run && !state.run.over) {
+          bustRun(state.run, 'left the run');
+          finishRunRecord();
+        }
+        state.run = null;
+        renderRunHud();
         buildTable();
         dealNewHand();
         openSettings();
@@ -801,27 +1139,63 @@ function openSettings() {
       }
     ));
 
-    body.appendChild(choiceSetting(
-      'Blinds',
-      'Your stack is always one hundred big blinds, so the game plays the same at every level.',
-      [
-        { label: '1 and 2', value: 2 },
-        { label: '2 and 5', value: 5 },
-        { label: '5 and 10', value: 10 }
-      ],
-      state.settings.bigBlind,
-      (value) => {
-        state.settings.bigBlind = value;
-        save();
-        clearGame();
-        buildTable();
-        dealNewHand();
-        openSettings();
-      }
-    ));
+    if (state.settings.mode === 'free') {
+      body.appendChild(choiceSetting(
+        'Table size',
+        'Six handed is the standard practice game. Heads up puts you in every hand.',
+        [
+          { label: '6 seats', value: 6 },
+          { label: '9 seats', value: 9 },
+          { label: 'Heads up', value: 2 }
+        ],
+        state.settings.tableSize,
+        (value) => {
+          state.settings.tableSize = value;
+          save();
+          clearGame();
+          buildTable();
+          dealNewHand();
+          openSettings();
+        }
+      ));
+
+      body.appendChild(choiceSetting(
+        'Blinds',
+        'Your stack is always one hundred big blinds, so the game plays the same at every level.',
+        [
+          { label: '1 and 2', value: 2 },
+          { label: '2 and 5', value: 5 },
+          { label: '5 and 10', value: 10 }
+        ],
+        state.settings.bigBlind,
+        (value) => {
+          state.settings.bigBlind = value;
+          save();
+          clearGame();
+          buildTable();
+          dealNewHand();
+          openSettings();
+        }
+      ));
+    } else {
+      body.appendChild(ui.el('div', 'section-title', 'The climb'));
+      body.appendChild(ui.el('p', 'empty-note',
+        'The table and the blinds are set by the step you are on. You pick which table to take at the start of each one.'));
+      const give = ui.el('button', 'danger-btn quiet', 'Abandon this run');
+      give.type = 'button';
+      give.addEventListener('click', () => {
+        if (state.run && !state.run.over) {
+          bustRun(state.run, 'left the run');
+          finishRunRecord();
+        }
+        ui.closeScreen();
+        startRun();
+      });
+      body.appendChild(give);
+    }
 
     body.appendChild(ui.el('div', 'section-title', 'Start over'));
-    const reset = ui.el('button', 'danger-btn', 'Reset all stats and progress');
+    const reset = ui.el('button', 'danger-btn', 'Reset stats and progress');
     reset.type = 'button';
     reset.addEventListener('click', () => {
       state.stats = JSON.parse(JSON.stringify(DEFAULT_STATS));
@@ -829,11 +1203,18 @@ function openSettings() {
       save();
       renderProgress();
       clearGame();
+      if (state.settings.mode === 'run') {
+        ui.closeScreen();
+        startRun();
+        return;
+      }
       buildTable();
       dealNewHand();
       openSettings();
     });
     body.appendChild(reset);
+    body.appendChild(ui.el('p', 'empty-note',
+      'Your finished runs are kept separately and this does not touch them.'));
   });
 }
 
@@ -973,11 +1354,16 @@ function boot() {
   renderProgress();
   registerServiceWorker();
   if (restoreGame()) {
+    renderRunHud();
     render();
     step();
-  } else {
-    dealNewHand();
+    return;
   }
+  if (state.settings.mode === 'run') {
+    startRun();
+    return;
+  }
+  dealNewHand();
 }
 
 boot();

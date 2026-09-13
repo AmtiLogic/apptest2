@@ -120,6 +120,40 @@ export function buildSeats(tableSize, humanName) {
   return seats;
 }
 
+// Faces for the seats beyond the five named personalities. A run redraws the
+// table at every step, so it needs more names than a fixed practice table.
+const RUN_EXTRAS = [
+  { name: 'Nils', avatar: '\u{1F989}' },
+  { name: 'Vera', avatar: '\u{1F340}' },
+  { name: 'Otto', avatar: '\u{1F422}' },
+  { name: 'Sam', avatar: '\u{1F3B2}' },
+  { name: 'Wren', avatar: '\u{1FAB6}' },
+  { name: 'Pax', avatar: '\u{1F9CA}' }
+];
+
+/**
+ * Seats for one step of a run. The pool decides who you are up against, so a
+ * later step can be filled with players who actually punish you.
+ */
+export function buildRunSeats(tableSize, pool, humanName) {
+  const seats = [{ id: 'hero', name: humanName || 'You', avatar: '\u{1FAF5}', isHuman: true, rebuy: false }];
+  const used = new Set();
+  let extra = 0;
+  for (let i = 0; i < tableSize - 1; i++) {
+    const key = (pool && pool.length ? pool : ['drifter'])[i % (pool && pool.length ? pool.length : 1)];
+    const p = PERSONALITIES[key] || PERSONALITIES.drifter;
+    if (!used.has(p.key)) {
+      used.add(p.key);
+      seats.push({ id: p.key, name: p.name, avatar: p.avatar, personality: p.key });
+    } else {
+      const face = RUN_EXTRAS[extra % RUN_EXTRAS.length];
+      extra += 1;
+      seats.push({ id: p.key + '-' + i, name: face.name, avatar: face.avatar, personality: p.key });
+    }
+  }
+  return seats;
+}
+
 function clamp(value, low, high) {
   return Math.max(low, Math.min(high, value));
 }

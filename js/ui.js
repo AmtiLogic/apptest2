@@ -13,7 +13,7 @@ export function cacheDom() {
     'table-message', 'hand-result', 'coach-banner', 'action-area', 'hero-cards',
     'hero-stack', 'hero-readout', 'sheet', 'sheet-title', 'sheet-body',
     'screen', 'screen-title', 'screen-body',
-    'level-label', 'streak-label', 'level-fill', 'fold-hint'
+    'level-label', 'streak-label', 'level-fill', 'fold-hint', 'run-line'
   ];
   for (const id of ids) {
     dom[camel(id)] = document.getElementById(id);
@@ -678,6 +678,172 @@ function refreshStreakLabel() {
   node.hidden = true;
 }
 
+/**
+ * Where you are in the climb, in the top bar: a pip per step, how many hands
+ * are left of this one, and what your stack is worth in big blinds. The last
+ * of those is the number that matters, because the blinds are what kill you.
+ */
+export function setRunHud(run) {
+  const node = dom.runLine;
+  if (!node) return;
+  if (!run) {
+    node.hidden = true;
+    clear(node);
+    dom.handNumber.parentNode.classList.remove('run');
+    return;
+  }
+  clear(node);
+  const pips = el('span', 'run-pips');
+  for (let i = 0; i < run.steps; i++) {
+    pips.appendChild(el('i', 'run-pip' +
+      (i < run.step - 1 ? ' done' : (i === run.step - 1 ? ' now' : ''))));
+  }
+  node.appendChild(pips);
+  node.appendChild(el('span', 'run-left', run.handsLeft + ' left'));
+  const bb = el('span', 'run-bb' + (run.blindsLeft <= 10 ? ' low' : ''), run.blindsLeft + ' BB');
+  node.appendChild(bb);
+  node.hidden = false;
+  dom.handNumber.parentNode.classList.add('run');
+}
+
+/**
+ * The fork between steps. Two tables, the same blinds, a different number of
+ * people to get through. There is no way out of this screen: the run is
+ * waiting on an answer.
+ */
+export function showTableChoice(data, onPick) {
+  openScreen('Step ' + data.step + ' of ' + data.steps, (body) => {
+    body.appendChild(stepHeader(data));
+
+    body.appendChild(el('div', 'section-title', 'Pick your table'));
+    for (const choice of data.choices) {
+      const card = el('button', 'pick-card');
+      card.type = 'button';
+      const top = el('div', 'pick-top');
+      top.appendChild(el('strong', null, choice.name));
+      top.appendChild(el('span', 'pick-seats', choice.seats + ' seats'));
+      card.appendChild(top);
+      card.appendChild(el('div', 'pick-note', choice.note));
+      card.addEventListener('click', () => onPick(choice));
+      body.appendChild(card);
+    }
+  }, { sticky: true });
+}
+
+function stepHeader(data) {
+  const wrap = el('div', 'step-head');
+  wrap.appendChild(el('div', 'step-name', data.name));
+  wrap.appendChild(el('div', 'step-focus', 'This step is about: ' + data.focusName));
+  wrap.appendChild(el('p', 'step-brief', data.brief));
+  const facts = el('div', 'step-facts');
+  facts.appendChild(fact(data.stack, 'Your stack'));
+  facts.appendChild(fact(data.bigBlind, 'Big blind'));
+  facts.appendChild(fact(data.blindsLeft, 'Big blinds left'));
+  wrap.appendChild(facts);
+  if (data.blindsLeft <= 12) {
+    wrap.appendChild(el('p', 'step-warn',
+      'That is a short stack for these blinds. Waiting for a hand will cost you most of it.'));
+  }
+  return wrap;
+}
+
+function fact(value, label) {
+  const box = el('div', 'fact');
+  box.appendChild(el('div', 'fact-value', value));
+  box.appendChild(el('div', 'fact-label', label));
+  return box;
+}
+
+/** How the step you just finished went, then what the next one is. */
+export function showStepDebrief(data, onContinue) {
+  openScreen('Step cleared', (body) => {
+    const head = el('div', 'debrief' + (data.mastered ? ' mastered' : ''));
+    head.appendChild(el('div', 'debrief-name', data.finishedName));
+    if (data.decisions === 0) {
+      head.appendChild(el('p', 'debrief-line',
+        'You got through it without a single decision on ' + lower(data.focusName) +
+        '. Nothing to judge, so nothing learned yet.'));
+    } else {
+      const clean = data.decisions - data.mistakes;
+      head.appendChild(el('p', 'debrief-line',
+        clean + ' of ' + data.decisions + ' right on ' + lower(data.focusName) + '.'));
+      if (data.mastered && !data.alreadyLearned) {
+        head.appendChild(el('div', 'debrief-badge', 'Learned: ' + data.focusName));
+      } else if (data.mastered) {
+        head.appendChild(el('div', 'debrief-badge dim', 'Still solid on ' + lower(data.focusName)));
+      } else if (data.mistakes > 0) {
+        head.appendChild(el('p', 'debrief-line dim',
+          'Not clean enough to call it learned. It will come round again.'));
+      }
+    }
+    body.appendChild(head);
+
+    body.appendChild(el('div', 'section-title', 'Next'));
+    body.appendChild(stepHeader(data.next));
+
+    const go = el('button', 'next-btn wide', 'Choose a table');
+    go.type = 'button';
+    go.addEventListener('click', onContinue);
+    body.appendChild(go);
+  }, { sticky: true });
+}
+
+/** The end of a run, won or lost, and everything it added up to. */
+export function showRunOver(data, onAgain) {
+  openScreen(data.won ? 'Run complete' : 'Run over', (body) => {
+    const head = el('div', 'runover' + (data.won ? ' won' : ''));
+    head.appendChild(el('div', 'runover-line',
+      data.won
+        ? 'You cleared all ' + data.steps + ' tables.'
+        : 'Step ' + data.step + ' of ' + data.steps + ', ' + data.stepName + '. You ' + data.endedBy + '.'));
+    body.appendChild(head);
+
+    const facts = el('div', 'step-facts');
+    facts.appendChild(fact(data.hands, 'Hands'));
+    facts.appendChild(fact(data.peak, 'Best stack'));
+    facts.appendChild(fact(data.decisions ? Math.round((data.good / data.decisions) * 100) + '%' : '0%', 'Rated good'));
+    body.appendChild(facts);
+
+    if (data.steps_detail.length) {
+      body.appendChild(el('div', 'section-title', 'Step by step'));
+      for (const st of data.steps_detail) {
+        const row = el('div', 'step-row' + (st.mastered ? ' mastered' : (st.cleared ? '' : ' failed')));
+        const left = el('div', 'step-row-left');
+        left.appendChild(el('div', 'step-row-name', st.name));
+        left.appendChild(el('div', 'step-row-focus', st.focusName));
+        row.appendChild(left);
+        row.appendChild(el('div', 'step-row-score',
+          st.decisions ? (st.decisions - st.mistakes) + '/' + st.decisions : '-'));
+        body.appendChild(row);
+      }
+    }
+
+    if (data.leaks.length) {
+      body.appendChild(el('div', 'section-title', 'What cost you most'));
+      for (const leak of data.leaks) {
+        const row = el('div', 'leak-row');
+        row.appendChild(el('div', 'leak-name', leak.label));
+        row.appendChild(el('div', 'leak-count', leak.count + (leak.count === 1 ? ' time' : ' times')));
+        body.appendChild(row);
+      }
+    }
+
+    const h = data.history;
+    body.appendChild(el('p', 'empty-note',
+      h.runs + (h.runs === 1 ? ' run' : ' runs') + ' on record, ' + h.wins +
+      ' complete, best stack ' + h.bestStack + '.'));
+
+    const again = el('button', 'next-btn wide', 'New run');
+    again.type = 'button';
+    again.addEventListener('click', onAgain);
+    body.appendChild(again);
+  }, { sticky: true });
+}
+
+function lower(text) {
+  return String(text).charAt(0).toLowerCase() + String(text).slice(1);
+}
+
 export function setProgress(progress) {
   dom.levelLabel.textContent = 'Level ' + progress.level;
   dom.levelFill.style.width =
@@ -1232,12 +1398,24 @@ export function sheetIsOpen() {
 
 // ------------------------------------------------------------------ screen
 
-export function openScreen(title, build) {
+/**
+ * options: { sticky } - a sticky screen has no way out, because the game is
+ * waiting on an answer from it. Used for picking the next table and for the
+ * end of a run.
+ */
+export function openScreen(title, build, options) {
   dom.screenTitle.textContent = title;
   clear(dom.screenBody);
   build(dom.screenBody);
+  const sticky = !!(options && options.sticky);
+  dom.screen.classList.toggle('sticky', sticky);
+  dom.screen.querySelector('.screen-close').hidden = sticky;
   dom.screen.hidden = false;
   dom.screenBody.scrollTop = 0;
+}
+
+export function screenIsSticky() {
+  return dom.screen.classList.contains('sticky');
 }
 
 export function closeScreen() {

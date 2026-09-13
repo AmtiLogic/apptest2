@@ -75,7 +75,10 @@ export function createTable(options = {}) {
       acted: false,
       hasCards: false,
       lastAction: null,
-      wonLast: 0
+      wonLast: 0,
+      // A practice seat is topped back up when it busts. A seat playing a run
+      // is not: busting is the end of the run, which is the whole tension.
+      rebuy: seat.rebuy !== false
     })),
     startingStack: options.startingStack || 200,
     smallBlind: options.smallBlind || 1,
@@ -111,9 +114,9 @@ export function startHand(t) {
     t.buttonIndex = (t.buttonIndex + 1) % t.players.length;
   }
   // A practice table never runs dry. Anyone broke is topped back up so the
-  // session keeps going.
+  // session keeps going, unless the seat has opted out of that.
   for (const p of t.players) {
-    if (p.stack <= 0) p.stack = t.startingStack;
+    if (p.stack <= 0 && p.rebuy !== false) p.stack = t.startingStack;
     p.hole = [];
     p.folded = false;
     p.allIn = false;

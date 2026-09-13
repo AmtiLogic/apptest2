@@ -14,10 +14,15 @@ import {
   gradeAction, holdingReadout, expandToken, inRange, classifyDraws,
   outsToEquity, OPENING_CHARTS, expandRange
 } from '../js/coach.js';
-import { botAction, buildSeats } from '../js/bots.js';
+import { botAction, buildSeats, buildRunSeats } from '../js/bots.js';
 import { parseMarkup, resolveSlug, plainText, TERMS } from '../js/glossary.js';
 import { liveNote, hasLiveNote } from '../js/live.js';
 import { diagramData, oddsData, orderData, outsData, ladderData, rangeData } from '../js/diagrams.js';
+import {
+  SECTORS, HANDS_PER_SECTOR, CONCEPTS, newRun, sectorOf, isLastSector,
+  handsLeftInSector, tableChoices, recordDecision, scoreSector, advanceSector,
+  bustRun, runRecord, addRunRecord, historySummary, MAX_RUNS_KEPT
+} from '../js/run.js';
 
 let passed = 0;
 let failed = 0;
@@ -1237,6 +1242,211 @@ test('the two odds bars always agree with the verdict beside them', () => {
         'seed ' + seed + ': bars say ' + odds.equity + ' v ' + odds.need + ' but good is ' + odds.good);
     }
   }
+});
+
+// --------------------------------------------------------------------- runs
+
+test('a run climbs every step and the blinds go up the whole way', () => {
+  const run = newRun(0);
+  assert.equal(run.sector, 0);
+  assert.equal(sectorOf(run).key, SECTORS[0].key);
+
+  let blinds = 0;
+  for (let i = 0; i < SECTORS.length; i++) {
+    // Each step is about one idea, and that idea has a name a person can read.
+    const sector = SECTORS[i];
+    assert.ok(CONCEPTS[sector.focus], sector.key + ' has a focus nobody has named');
+    assert.ok(sector.bigBlind > blinds, 'blinds must rise at ' + sector.key);
+    blinds = sector.bigBlind;
+    assert.ok(sector.pool.length >= 3, sector.key + ' needs enough opponents to fill a table');
+  }
+
+  // Walking the whole climb ends the run as a win, once and only at the end.
+  for (let i = 0; i < SECTORS.length - 1; i++) {
+    const step = advanceSector(run);
+    assert.equal(step.finished, false, 'finished early at step ' + i);
+    assert.equal(run.over, false);
+    assert.equal(run.sector, i + 1);
+  }
+  assert.equal(isLastSector(run), true);
+  const last = advanceSector(run);
+  assert.equal(last.finished, true);
+  assert.equal(run.won, true);
+  assert.equal(run.over, true);
+  assert.equal(run.sectorScores.length, SECTORS.length);
+});
+
+test('a step is scored on its own focus, not on everything you did', () => {
+  const run = newRun(0);
+  const focus = sectorOf(run).focus;
+  const other = Object.keys(CONCEPTS).find((c) => c !== focus);
+
+  // Mistakes that belong to another idea must not sink this step.
+  for (let i = 0; i < 6; i++) {
+    recordDecision(run, { verdict: 'mistake', concept: other, leak: 'chasedDraw' });
+  }
+  for (let i = 0; i < 5; i++) recordDecision(run, { verdict: 'good', concept: focus });
+
+  const score = scoreSector(run);
+  assert.equal(score.focus, focus);
+  assert.equal(score.decisions, 5, 'only the focus decisions count towards the step');
+  assert.equal(score.mistakes, 0);
+  assert.equal(score.cleared, true);
+  assert.equal(score.mastered, true);
+
+  // The run as a whole still remembers everything that happened.
+  assert.equal(run.decisions, 11);
+  assert.equal(run.mistake, 6);
+  assert.equal(run.leaks.chasedDraw, 6);
+});
+
+test('a seat in a run is never topped back up, and one chip is still alive', () => {
+  // The whole tension is that busting ends it. A run seat that quietly got a
+  // fresh stack would make the climb unloseable.
+  const seats = buildRunSeats(4, ['drifter', 'anchor', 'marlow'], 'You');
+  assert.equal(seats[0].rebuy, false, 'the human seat must not rebuy');
+  const t = createTable({ seats, startingStack: 200, bigBlind: 2, smallBlind: 1, rng: makeRng(5) });
+
+  t.players[0].stack = 0;
+  t.players[1].stack = 0;
+  startHand(t);
+  assert.equal(t.players[0].stack, 0, 'the run seat stays broke');
+  assert.ok(t.players[1].stack > 0, 'the practice seats are topped back up');
+
+  // A stack under one big blind still gets dealt in, all in for what is left.
+  const t2 = createTable({ seats, startingStack: 200, bigBlind: 20, smallBlind: 10, rng: makeRng(6) });
+  t2.players[0].stack = 1;
+  startHand(t2);
+  assert.equal(t2.players[0].hasCards, true, 'a short stack is still in the hand');
+  assert.ok(t2.players[0].stack >= 0);
+  // And the chips still add up, whatever happened at the blinds.
+  const committed = t2.players.reduce((n, p) => n + p.totalCommitted, 0);
+  assert.equal(committed, t2.pot, 'the pot has to match what went into it');
+});
+
+test('two right out of two is not proof of anything', () => {
+  const run = newRun(0);
+  const focus = sectorOf(run).focus;
+  recordDecision(run, { verdict: 'good', concept: focus });
+  recordDecision(run, { verdict: 'good', concept: focus });
+  const score = scoreSector(run);
+  assert.equal(score.cleared, true);
+  assert.equal(score.mastered, false, 'two decisions is too few to call an idea learned');
+
+  recordDecision(run, { verdict: 'good', concept: focus });
+  assert.equal(scoreSector(run).mastered, true, 'three clean ones is the bar');
+});
+
+test('a step nobody could be judged on is cleared but never learned', () => {
+  const run = newRun(0);
+  const score = scoreSector(run);
+  assert.equal(score.decisions, 0);
+  assert.equal(score.cleared, true, 'surviving a step with no decisions still clears it');
+  assert.equal(score.mastered, false, 'but it can never count as learned');
+});
+
+test('busting ends the run and keeps the step you died on', () => {
+  const run = newRun(0);
+  run.sector = 2;
+  recordDecision(run, { verdict: 'mistake', concept: sectorOf(run).focus, leak: 'chasedDraw' });
+  bustRun(run, 'ran out of chips');
+  assert.equal(run.over, true);
+  assert.equal(run.won, false);
+  assert.equal(run.endedBy, 'ran out of chips');
+  assert.equal(run.sectorScores.length, 1);
+  assert.equal(run.sectorScores[0].sector, 2);
+});
+
+test('a finished run keeps a record small enough to hold hundreds of', () => {
+  const run = newRun(40);
+  run.handsPlayed = 31;
+  run.stack = 0;
+  run.peakStack = 940;
+  for (let i = 0; i < 4; i++) {
+    recordDecision(run, { verdict: 'good', concept: sectorOf(run).focus });
+  }
+  advanceSector(run);
+  bustRun(run, 'ran out of chips');
+
+  const record = runRecord(run);
+  assert.equal(record.hands, 31);
+  assert.equal(record.peak, 940);
+  assert.equal(record.won, false);
+  assert.deepEqual(record.learned, [SECTORS[0].focus]);
+  assert.ok(JSON.stringify(record).length < 700, 'a run record has to stay small');
+
+  // Three hundred of them is what gets kept, and it still fits in a store.
+  let history = [];
+  for (let i = 0; i < MAX_RUNS_KEPT + 40; i++) history = addRunRecord(history, record);
+  assert.equal(history.length, MAX_RUNS_KEPT);
+  assert.ok(JSON.stringify(history).length < 250000, 'the whole history has to fit in localStorage');
+});
+
+test('history is newest first and never rewrites what is already there', () => {
+  const first = { at: 1, sector: 0, hands: 5, peak: 200, won: false, leaks: {}, learned: [] };
+  const second = { at: 2, sector: 3, hands: 22, peak: 700, won: true, leaks: {}, learned: [] };
+  const history = addRunRecord(addRunRecord([], first), second);
+  assert.equal(history[0].at, 2, 'newest run comes first');
+  assert.deepEqual(history[1], first, 'the older run is untouched');
+
+  const summary = historySummary(history);
+  assert.equal(summary.runs, 2);
+  assert.equal(summary.wins, 1);
+  assert.equal(summary.bestSector, 3);
+  assert.equal(summary.bestStack, 700);
+  assert.equal(summary.handsPlayed, 27);
+});
+
+test('both tables on offer at a step are playable, and differ', () => {
+  for (let i = 0; i < SECTORS.length; i++) {
+    const choices = tableChoices(i);
+    assert.equal(choices.length, 2);
+    const seats = choices.map((c) => c.seats);
+    assert.notEqual(seats[0], seats[1], 'the choice has to be a choice');
+    for (const choice of choices) {
+      assert.ok(choice.seats >= 2 && choice.seats <= 9, 'seat count the engine can deal');
+      assert.ok(choice.note && choice.name, 'every table says what it is');
+      assert.ok(choice.pool.length >= 3);
+    }
+  }
+});
+
+test('hands left in a step counts down and never goes negative', () => {
+  const run = newRun(0);
+  assert.equal(handsLeftInSector(run), HANDS_PER_SECTOR);
+  run.handsThisSector = HANDS_PER_SECTOR;
+  assert.equal(handsLeftInSector(run), 0);
+  run.handsThisSector = HANDS_PER_SECTOR + 5;
+  assert.equal(handsLeftInSector(run), 0);
+});
+
+test('every decision the coach grades belongs to one of the named ideas', () => {
+  // If a grade carries a concept nobody has a name for, a step could never be
+  // scored on it and the run would silently ignore that decision.
+  const seen = new Set();
+  for (let seed = 1; seed <= 200; seed++) {
+    const t = table(6, seed);
+    startHand(t);
+    let guard = 0;
+    while (!t.handOver && guard < 250) {
+      guard += 1;
+      if (t.toAct < 0) break;
+      if (t.toAct === 0) {
+        const legal = legalActions(t);
+        if (!legal) break;
+        const verdict = gradeAction(t, 0, legal.canCheck ? { type: 'check' } : { type: 'call' });
+        if (verdict) {
+          assert.ok(verdict.concept, 'a grade with no concept at seed ' + seed);
+          assert.ok(CONCEPTS[verdict.concept], 'unknown concept ' + verdict.concept);
+          seen.add(verdict.concept);
+        }
+        applyAction(t, legal.canCheck ? { type: 'check' } : { type: 'call' });
+      } else {
+        applyAction(t, botAction(t, t.toAct, t.rng));
+      }
+    }
+  }
+  assert.ok(seen.size >= 3, 'only saw ' + [...seen].join(', '));
 });
 
 test('suited and offsuit are separate squares that can disagree', () => {
