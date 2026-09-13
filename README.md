@@ -324,19 +324,24 @@ short and leaves a band of dead black under the controls.
 
 ## The table
 
-The play area carries a faint felt: a soft pool of light over the top of the
-table where the players and the board are, and a fine grain under it. The
-grain is two dot grids at sizes that do not divide into each other, because
-one grid on its own reads as a screen door rather than as cloth.
+The play area carries the four suits, tiled faintly across it, with a soft
+light over the middle. The tile is a half drop rather than a straight grid,
+which is how a card room carpet is laid out and why it reads as a pattern
+rather than as rows. Anything crossing the edge of the tile is drawn on both
+sides of it, so the repeat is seamless.
 
-Both are backgrounds on the play area rather than an element of their own, so
-nothing new joins the stacking order and the cards still fly over the top of
-everything exactly as they did. Nothing in the pattern is positioned relative
-to the board, because this area doubles in height between the smallest phone
-and the largest and anything anchored would land somewhere different on each
-of them. A first attempt drew the arc of a rail and it came out as two stray
-lines behind the coach, which is what that constraint looks like when you
-ignore it.
+It is an inline SVG in the stylesheet rather than an image file. It stays
+crisp at any pixel density, it costs about a kilobyte, and there is nothing
+extra to fetch or to keep in the offline cache.
+
+Both layers are backgrounds on the play area rather than an element of their
+own, so nothing new joins the stacking order and the cards still fly over the
+top of everything exactly as they did. Nothing in the pattern is positioned
+relative to the board, because this area doubles in height between the
+smallest phone and the largest and anything anchored would land somewhere
+different on each of them. A first attempt drew the arc of a rail and it came
+out as two stray lines behind the coach, which is what that constraint looks
+like when you ignore it.
 
 Asking your phone for more contrast turns the pattern off. Texture behind
 text is the first thing that should go.

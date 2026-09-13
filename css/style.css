@@ -163,22 +163,22 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
   padding: 0 var(--pad);
   overflow: hidden;
 
-  /* A table, faintly. Two ideas and nothing else: a light hanging over the
-     middle, and the weave of the cloth under it. The weave is two dot grids
-     at sizes that do not divide into each other, because one grid on its own
-     reads as a screen door rather than as cloth.
+  /* The four suits, tiled faintly across the table, with a soft light over
+     the middle of it. The tile is a half drop rather than a straight grid,
+     which is how a card room carpet is laid out and why it reads as a pattern
+     rather than as rows. Anything crossing the edge of the tile is drawn on
+     both sides of it so the repeat is seamless.
 
-     Painted as backgrounds rather than as an element, so nothing new joins
-     the stacking order and the cards still fly over the top of it. Nothing
-     here is placed relative to the board, because the height of this area
-     changes by a factor of two between phones and anything positioned would
-     land somewhere different on each of them. */
+     An inline SVG rather than an image file: it stays crisp at any pixel
+     density, costs one line of CSS, and there is nothing extra to fetch or to
+     cache for offline. Painted as backgrounds rather than as an element, so
+     nothing new joins the stacking order and the cards still fly over the top
+     of everything. */
   background-image:
-    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.016) 0.6px, transparent 0),
-    radial-gradient(circle at 2px 3px, rgba(255, 255, 255, 0.013) 0.6px, transparent 0),
-    radial-gradient(122% 54% at 50% 25%, rgba(61, 220, 151, 0.055), transparent 71%);
-  background-size: 7px 7px, 11px 11px, auto;
-  background-repeat: repeat, repeat, no-repeat;
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='100' height='100'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cg transform='translate(25 24) rotate(-8) scale(1.05) translate(-12 -12)'%3E%3Cpath d='M12 3.2c0 0-6.8 6.1-6.8 10.2a3.9 3.9 0 0 0 6 3.2c-.2 1.8-1 3.2-2.3 4.1V21.8h6.2v-1.1c-1.3-.9-2.1-2.3-2.3-4.1a3.9 3.9 0 0 0 6-3.2C18.8 9.3 12 3.2 12 3.2Z'/%3E%3C/g%3E%3Cg transform='translate(75 24) rotate(7) scale(1.05) translate(-12 -12)'%3E%3Cpath d='M12 20.8S3.6 14.6 3.6 9.3a4.3 4.3 0 0 1 8.4-1.9 4.3 4.3 0 0 1 8.4 1.9C20.4 14.6 12 20.8 12 20.8Z'/%3E%3C/g%3E%3Cg transform='translate(50 74) rotate(-5) scale(1.05) translate(-12 -12)'%3E%3Cpath d='M12 2.6 19.6 12 12 21.4 4.4 12Z'/%3E%3C/g%3E%3Cg transform='translate(0 74) rotate(6) scale(1.05) translate(-12 -12)'%3E%3Cpath d='M12 2.6a3.8 3.8 0 0 1 2.9 6.2 3.8 3.8 0 1 1 .8 7.2 4.1 4.1 0 0 1-3-1.4c.1 1.9.9 3.4 2.2 4.5v2.7H9.1v-2.7c1.3-1.1 2.1-2.6 2.2-4.5a4.1 4.1 0 0 1-3 1.43.8 3.8 0 1 1 .8-7.2A3.8 3.8 0 0 1 12 2.6Z'/%3E%3C/g%3E%3Cg transform='translate(100 74) rotate(6) scale(1.05) translate(-12 -12)'%3E%3Cpath d='M12 2.6a3.8 3.8 0 0 1 2.9 6.2 3.8 3.8 0 1 1 .8 7.2 4.1 4.1 0 0 1-3-1.4c.1 1.9.9 3.4 2.2 4.5v2.7H9.1v-2.7c1.3-1.1 2.1-2.6 2.2-4.5a4.1 4.1 0 0 1-3 1.43.8 3.8 0 1 1 .8-7.2A3.8 3.8 0 0 1 12 2.6Z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"),
+    radial-gradient(122% 54% at 50% 25%, rgba(61, 220, 151, 0.05), transparent 71%);
+  background-size: 64px 64px, auto;
+  background-repeat: repeat, no-repeat;
 }
 
 /* Anybody who has asked their phone for more contrast gets a plain black
