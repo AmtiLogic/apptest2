@@ -42,6 +42,17 @@ export function settled(current, target) {
   return Math.abs(target.x - current.x) < EPSILON && Math.abs(target.y - current.y) < EPSILON;
 }
 
+/**
+ * What happened the last time we tried. The Setup screen shows this, because
+ * an effect that silently does nothing is indistinguishable from one that is
+ * broken, and the first version of this shipped exactly that way.
+ */
+let status = 'idle';
+
+export function tiltStatus() {
+  return status;
+}
+
 const state = {
   running: false,
   base: null,
@@ -76,19 +87,27 @@ export function tiltNeedsPermission() {
  * answer, not a failure.
  */
 export function startTilt(onChange) {
-  if (!tiltAvailable()) return Promise.resolve(false);
+  if (!tiltAvailable()) { status = 'unavailable'; return Promise.resolve(false); }
   if (state.running) return Promise.resolve(true);
   if (!tiltNeedsPermission()) {
     listen(onChange);
+    status = 'running';
     return Promise.resolve(true);
   }
   return window.DeviceOrientationEvent.requestPermission()
     .then((answer) => {
-      if (answer !== 'granted') return false;
+      if (answer !== 'granted') { status = 'refused'; return false; }
       listen(onChange);
+      status = 'running';
       return true;
     })
-    .catch(() => false);
+    .catch(() => {
+      // iOS throws here when the call did not come from a gesture it accepts,
+      // which is a different problem from being told no: asking again from a
+      // better gesture can still work, so this must not look like a refusal.
+      status = 'needs-tap';
+      return false;
+    });
 }
 
 function listen(onChange) {
@@ -139,6 +158,7 @@ export function stopTilt() {
   state.base = null;
   state.target = { x: 0, y: 0 };
   state.current = { x: 0, y: 0 };
+  if (status === 'running') status = 'idle';
   if (state.onChange) state.onChange(0, 0);
 }
 

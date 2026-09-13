@@ -16,7 +16,7 @@ import {
   handsLeftInSector, tableChoices, recordDecision, advanceSector, bustRun,
   runRecord, addRunRecord, historySummary
 } from './run.js';
-import { startTilt, stopTilt, tiltAvailable, tiltIsRunning, recentreTilt } from './tilt.js';
+import { startTilt, stopTilt, tiltAvailable, tiltIsRunning, tiltStatus, recentreTilt } from './tilt.js';
 import * as ui from './ui.js';
 
 const STORAGE_KEY = 'holdem-coach-v1';
@@ -1143,7 +1143,8 @@ function openSettings() {
     if (tiltAvailable() && !ui.prefersReducedMotion()) {
       body.appendChild(choiceSetting(
         'Tilt',
-        'The table and the cards catch the light as you move the phone. It changes nothing about the game.',
+        'The table and the cards catch the light as you move the phone. It changes' +
+          ' nothing about the game. ' + tiltNote(),
         [{ label: 'On', value: true }, { label: 'Off', value: false }],
         state.settings.tilt !== false,
         (value) => {
@@ -1230,6 +1231,23 @@ function openSettings() {
     body.appendChild(ui.el('p', 'empty-note',
       'Your finished runs are kept separately and this does not touch them.'));
   });
+}
+
+/**
+ * Say out loud what the tilt is actually doing. An effect that quietly does
+ * nothing looks exactly like one that is broken, and this shipped that way
+ * once: the sensor was never being asked for and there was no way to tell.
+ */
+function tiltNote() {
+  if (state.settings.tilt === false) return 'Turned off.';
+  switch (tiltStatus()) {
+    case 'running': return 'Running now. Turn the phone and the light moves with it.';
+    case 'refused': return 'Your phone said no to the motion sensor. To change that, ' +
+      'turn on Motion and Orientation Access in Settings, under Safari.';
+    case 'needs-tap': return 'Waiting to ask your phone for the motion sensor. Tap On again.';
+    case 'unavailable': return 'This device does not report how it is being held.';
+    default: return 'Tap On to let it use the motion sensor.';
+  }
 }
 
 function choiceSetting(label, note, options, current, onPick) {
@@ -1365,11 +1383,23 @@ function registerServiceWorker() {
  */
 function armTilt() {
   if (!state.settings.tilt || ui.prefersReducedMotion() || !tiltAvailable()) return;
+  // On a click, not a pointerdown. iOS only counts some events as the gesture
+  // that is allowed to ask for the sensor, and pointerdown is not one of them:
+  // asking from it throws, which the first version of this swallowed, so the
+  // effect silently never started.
   const go = () => {
-    document.removeEventListener('pointerdown', go, true);
-    startTilt((x, y) => ui.setTilt(x, y));
+    startTilt((x, y) => ui.setTilt(x, y)).then((on) => {
+      // Only stop asking once it has actually worked. Giving up after one
+      // attempt is the other half of why this never ran: a single failure,
+      // for any reason, used to end it for the rest of the session.
+      if (on || tiltStatus() === 'refused') {
+        document.removeEventListener('click', go, true);
+        document.removeEventListener('touchend', go, true);
+      }
+    });
   };
-  document.addEventListener('pointerdown', go, true);
+  document.addEventListener('click', go, true);
+  document.addEventListener('touchend', go, true);
   // Coming back to the app is usually coming back to it held differently, so
   // wherever it is being held now becomes the new middle. This is its own
   // listener rather than a line in the one the service worker sets up,

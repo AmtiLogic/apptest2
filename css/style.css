@@ -215,7 +215,7 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
   background-size: 60px 60px, auto;
   background-repeat: repeat, no-repeat;
   background-position:
-    calc(var(--tilt-x) * -13px) calc(var(--tilt-y) * -9px),
+    calc(var(--tilt-x) * -26px) calc(var(--tilt-y) * -18px),
     0 0;
 }
 
@@ -229,16 +229,21 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
    amount, so they separate the way things at different distances do: the
    pattern on the cloth is furthest away and slides against the movement, the
    other players sit just above it, the board above them, and your own cards
-   nearest of all and moving most. It is only ever a few pixels, because the
-   point is depth rather than a visible slide.
+   nearest of all and moving most. What reads as depth is the spread between
+   the layers rather than any one of them, and the cloth provides most of it:
+   a repeating background has no edges, so it can travel a long way against
+   everything else for free. The content layers cannot. They start one rail
+   width from the screen edge, so anything past that is cut off, and eleven
+   pixels is the most the nearest of them can move sideways and stay whole.
+   Sideways is the tight direction; there is more room to give vertically.
 
    Transforms rather than offsets, so none of this touches layout. Every
    number resolves to zero when --tilt-x and --tilt-y are zero, which is what
    they are on a desktop, with the tilt turned off, and before the phone has
    been asked for permission. */
-.opponents { transform: translate3d(calc(var(--tilt-x) * 3px), calc(var(--tilt-y) * 2px), 0); }
-.middle { transform: translate3d(calc(var(--tilt-x) * 6px), calc(var(--tilt-y) * 4px), 0); }
-.hero-cards-wrap { transform: translate3d(calc(var(--tilt-x) * 10px), calc(var(--tilt-y) * 6px), 0); }
+.opponents { transform: translate3d(calc(var(--tilt-x) * 4px), calc(var(--tilt-y) * 4px), 0); }
+.middle { transform: translate3d(calc(var(--tilt-x) * 7px), calc(var(--tilt-y) * 8px), 0); }
+.hero-cards-wrap { transform: translate3d(calc(var(--tilt-x) * 11px), calc(var(--tilt-y) * 13px), 0); }
 
 /* Nobody who has asked for less movement gets any of it, whatever the setting
    says and whatever the sensor is reporting. */

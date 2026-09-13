@@ -389,11 +389,25 @@ what they are on a desktop, with the tilt switched off, and before iOS has
 been asked for permission. So the cards keep their sheen, centred and still,
 whether or not any of this ever runs. The glimmer never depends on the gyro.
 
-iOS will not report orientation until it has been asked, and only from a real
-tap, so the first tap anywhere in the app is what asks. Refusing is an answer
-and not a failure: everything carries on without it. There is a Tilt setting to
-turn it off, and `prefers-reduced-motion` turns it off outright whatever the
-setting says.
+iOS will not report orientation until it has been asked, and only from a gesture
+it accepts. That is narrower than it sounds and the first version of this got it
+wrong twice over: it asked on `pointerdown`, which iOS rejects, and it swallowed
+the rejection and removed its own listener, so one silent failure ended the
+effect for the whole session. It asks on a click now, and it keeps asking on
+later taps until the answer is either yes or an actual no.
+
+Refusing is an answer and not a failure: everything carries on without it, and
+it stops asking. The Tilt setting says which of those happened, because an
+effect that quietly does nothing looks exactly like one that is broken, which is
+how the first version shipped. `prefers-reduced-motion` turns the whole thing off
+whatever the setting says.
+
+How far each layer moves is bounded by the rail. The content starts one rail
+width from the edge of the screen, so anything past that is cut off, and eleven
+pixels is the most the nearest layer can travel sideways and stay whole. The
+cloth is not bounded, because a repeating background has no edges: it runs the
+other way and twice as far, and that spread is where most of the depth comes
+from.
 
 ## Motion
 
