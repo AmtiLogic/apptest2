@@ -16,6 +16,7 @@ import {
   handsLeftInSector, tableChoices, recordDecision, advanceSector, bustRun,
   runRecord, addRunRecord, historySummary
 } from './run.js';
+import { startTilt, stopTilt, tiltAvailable, tiltIsRunning, recentreTilt } from './tilt.js';
 import * as ui from './ui.js';
 
 const STORAGE_KEY = 'holdem-coach-v1';
@@ -26,7 +27,7 @@ const HERO_SEAT = 0;
 const BOT_DELAY = 620;
 const REVEAL_UNLOCK = 20;
 
-const DEFAULT_SETTINGS = { tableSize: 6, coach: true, bigBlind: 2, mode: 'run' };
+const DEFAULT_SETTINGS = { tableSize: 6, coach: true, bigBlind: 2, mode: 'run', tilt: true };
 
 // Points reward playing well, never winning chips. A bad call that wins the
 // pot is still a bad call, and a good fold that would have won is still a
@@ -1139,6 +1140,19 @@ function openSettings() {
       }
     ));
 
+    if (tiltAvailable() && !ui.prefersReducedMotion()) {
+      body.appendChild(choiceSetting(
+        'Tilt',
+        'The table and the cards catch the light as you move the phone. It changes nothing about the game.',
+        [{ label: 'On', value: true }, { label: 'Off', value: false }],
+        state.settings.tilt !== false,
+        (value) => {
+          setTiltEnabled(value);
+          openSettings();
+        }
+      ));
+    }
+
     if (state.settings.mode === 'free') {
       body.appendChild(choiceSetting(
         'Table size',
@@ -1344,12 +1358,47 @@ function registerServiceWorker() {
   });
 }
 
+/**
+ * The tilt has to be asked for on iOS, and only from a real tap, so it is
+ * armed on the first one rather than at load. Anyone who has asked their
+ * phone to stop moving things never gets asked at all.
+ */
+function armTilt() {
+  if (!state.settings.tilt || ui.prefersReducedMotion() || !tiltAvailable()) return;
+  const go = () => {
+    document.removeEventListener('pointerdown', go, true);
+    startTilt((x, y) => ui.setTilt(x, y));
+  };
+  document.addEventListener('pointerdown', go, true);
+  // Coming back to the app is usually coming back to it held differently, so
+  // wherever it is being held now becomes the new middle. This is its own
+  // listener rather than a line in the one the service worker sets up,
+  // because that one only exists if the worker registered and this has
+  // nothing to do with caching.
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) recentreTilt();
+  });
+}
+
+function setTiltEnabled(on) {
+  state.settings.tilt = on;
+  save();
+  if (!on) {
+    stopTilt();
+    ui.setTilt(0, 0);
+    return;
+  }
+  // Already inside a tap here, so this is the gesture iOS wants.
+  if (!tiltIsRunning()) startTilt((x, y) => ui.setTilt(x, y));
+}
+
 function boot() {
   ui.cacheDom();
   load();
   ui.setLiveNoteProvider((slug) => liveNote(slug, state.table, HERO_SEAT));
   ui.setDiagramProvider((slug) => diagramData(slug, state.table, HERO_SEAT));
   wireEvents();
+  armTilt();
   buildTable();
   renderProgress();
   registerServiceWorker();

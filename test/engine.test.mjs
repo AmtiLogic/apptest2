@@ -17,6 +17,7 @@ import {
 import { botAction, buildSeats, buildRunSeats } from '../js/bots.js';
 import { parseMarkup, resolveSlug, plainText, TERMS } from '../js/glossary.js';
 import { liveNote, hasLiveNote } from '../js/live.js';
+import { tiltFrom, approach, settled, clamp, TILT_RANGE, EPSILON } from '../js/tilt.js';
 import { diagramData, oddsData, orderData, outsData, ladderData, rangeData } from '../js/diagrams.js';
 import {
   SECTORS, HANDS_PER_SECTOR, CONCEPTS, newRun, sectorOf, isLastSector,
@@ -1611,6 +1612,84 @@ test('every glossary definition only leans on words that are also defined', () =
       }
     }
   }
+});
+
+// --- tilt ------------------------------------------------------------------
+
+test('a phone held the way it started reads as no tilt at all', () => {
+  const base = { beta: 41, gamma: -6 };
+  const t = tiltFrom(41, -6, base);
+  assert.equal(t.x, 0);
+  assert.equal(t.y, 0);
+});
+
+test('tilting either way reaches the edge and stops there', () => {
+  const base = { beta: 0, gamma: 0 };
+  assert.equal(tiltFrom(0, TILT_RANGE, base).x, 1);
+  assert.equal(tiltFrom(0, -TILT_RANGE, base).x, -1);
+  assert.equal(tiltFrom(-TILT_RANGE, 0, base).y, -1);
+  assert.equal(tiltFrom(TILT_RANGE, 0, base).y, 1);
+  // Well past the range is still just the edge, never further.
+  assert.equal(tiltFrom(0, TILT_RANGE * 9, base).x, 1);
+  assert.equal(tiltFrom(-TILT_RANGE * 9, 0, base).y, -1);
+});
+
+test('half way over reads as half', () => {
+  const t = tiltFrom(TILT_RANGE / 2, TILT_RANGE / 2, { beta: 0, gamma: 0 });
+  assert.equal(t.x, 0.5);
+  assert.equal(t.y, 0.5);
+});
+
+test('a reading with nothing in it sits at the middle rather than jumping', () => {
+  const base = { beta: 30, gamma: 12 };
+  const t = tiltFrom(null, undefined, base);
+  assert.equal(t.x, 0);
+  assert.equal(t.y, 0);
+});
+
+test('a missing baseline is treated as upright instead of throwing', () => {
+  const t = tiltFrom(0, TILT_RANGE, null);
+  assert.equal(t.x, 1);
+});
+
+test('clamp keeps a value inside its bounds', () => {
+  assert.equal(clamp(5, 0, 1), 1);
+  assert.equal(clamp(-5, 0, 1), 0);
+  assert.equal(clamp(0.3, 0, 1), 0.3);
+});
+
+test('smoothing closes the gap without ever overshooting it', () => {
+  let v = 0;
+  for (let i = 0; i < 200; i += 1) {
+    const next = approach(v, 1);
+    assert.ok(next > v, 'each step moves toward the target');
+    assert.ok(next <= 1, 'no step passes the target');
+    v = next;
+  }
+  assert.ok(Math.abs(1 - v) < EPSILON, 'it gets there');
+});
+
+test('smoothing works the same going down', () => {
+  let v = 1;
+  for (let i = 0; i < 200; i += 1) v = approach(v, -1);
+  assert.ok(Math.abs(-1 - v) < EPSILON);
+});
+
+test('the loop settles, so a still phone is not animating forever', () => {
+  let current = { x: 0, y: 0 };
+  const target = { x: 0.8, y: -0.4 };
+  let frames = 0;
+  while (!settled(current, target)) {
+    current = { x: approach(current.x, target.x), y: approach(current.y, target.y) };
+    frames += 1;
+    assert.ok(frames < 600, 'it settles rather than running on');
+  }
+  assert.ok(frames > 1, 'it takes more than one frame, so the move is smooth');
+});
+
+test('a tilt small enough to be a hand shake is treated as already settled', () => {
+  assert.ok(settled({ x: 0, y: 0 }, { x: EPSILON / 2, y: -EPSILON / 2 }));
+  assert.ok(!settled({ x: 0, y: 0 }, { x: EPSILON * 4, y: 0 }));
 });
 
 // ---------------------------------------------------------------------------

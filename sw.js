@@ -7,7 +7,7 @@
 // nothing to clear by hand. When there is no connection, or the network is
 // too slow to be useful, the cached copy is served instead.
 
-const CACHE_NAME = 'holdem-coach-v20';
+const CACHE_NAME = 'holdem-coach-v21';
 
 // How long to wait for the network before falling back to the cache. Short,
 // because every file here is small and a stale table beats a blank screen.
@@ -28,6 +28,7 @@ const ASSETS = [
   './js/live.js',
   './js/diagrams.js',
   './js/run.js',
+  './js/tilt.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/apple-touch-icon.png'

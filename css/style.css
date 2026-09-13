@@ -36,6 +36,39 @@
   --radius: 14px;
   --radius-lg: 18px;
   --tap: 54px;
+
+  /* Where the light is, from -1 to 1 on each axis. Written by the tilt, and
+     left at nothing when there is no gyro or the phone is lying still. */
+  --tilt-x: 0;
+  --tilt-y: 0;
+
+  /* The finish on a card: a band of gloss over paper that is a shade off
+     white along its length. White on white would be nothing, so the base has
+     to give the band something to be brighter than. */
+  --card-gloss:
+    linear-gradient(104deg,
+      rgba(146, 158, 176, 0) 30%,
+      rgba(146, 158, 176, 0.10) 41%,
+      rgba(255, 255, 255, 1) 50%,
+      rgba(146, 158, 176, 0.10) 59%,
+      rgba(146, 158, 176, 0) 70%),
+    linear-gradient(152deg, #fcfdfe 0%, #e7ebf2 100%);
+  --card-gloss-at: calc(50% - var(--tilt-x) * 25%) 0, 0 0;
+
+  /* The back of a card, named once because both the board slots and the hand
+     draw the same thing, with its own quieter band of gloss over it. */
+  --card-back-art:
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.85) 0 7%, transparent 7.5%),
+    radial-gradient(circle at 50% 50%, transparent 0 15%, rgba(255, 255, 255, 0.42) 15% 17%, transparent 17.5%),
+    radial-gradient(circle at 50% 50%, transparent 0 27%, rgba(255, 255, 255, 0.3) 27% 28.5%, transparent 29%),
+    radial-gradient(circle at 50% 50%, transparent 0 38%, rgba(255, 255, 255, 0.22) 38% 39.5%, transparent 40%),
+    radial-gradient(circle at 50% 45%, #f8736a 0%, var(--card-back) 72%);
+  --back-gloss:
+    linear-gradient(104deg,
+      rgba(255, 255, 255, 0) 38%,
+      rgba(255, 255, 255, 0.26) 48%,
+      rgba(255, 255, 255, 0) 58%);
+  --back-gloss-at: calc(50% - var(--tilt-x) * 25%) 0, 0 0, 0 0, 0 0, 0 0, 0 0;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -176,15 +209,42 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
      of everything. */
   background-image:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' width='100' height='100'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cg transform='translate(25 24) rotate(-8) scale(1.05) translate(-12 -12)'%3E%3Cpath d='M12 3.2c0 0-6.8 6.1-6.8 10.2a3.9 3.9 0 0 0 6 3.2c-.2 1.8-1 3.2-2.3 4.1V21.8h6.2v-1.1c-1.3-.9-2.1-2.3-2.3-4.1a3.9 3.9 0 0 0 6-3.2C18.8 9.3 12 3.2 12 3.2Z'/%3E%3C/g%3E%3Cg transform='translate(75 24) rotate(7) scale(1.05) translate(-12 -12)'%3E%3Cpath d='M12 20.8S3.6 14.6 3.6 9.3a4.3 4.3 0 0 1 8.4-1.9 4.3 4.3 0 0 1 8.4 1.9C20.4 14.6 12 20.8 12 20.8Z'/%3E%3C/g%3E%3Cg transform='translate(50 74) rotate(-5) scale(1.05) translate(-12 -12)'%3E%3Cpath d='M12 2.6 19.6 12 12 21.4 4.4 12Z'/%3E%3C/g%3E%3Cg transform='translate(0 74) rotate(6) scale(1.05) translate(-12 -12)'%3E%3Cpath d='M12 2.6a3.8 3.8 0 0 1 2.9 6.2 3.8 3.8 0 1 1 .8 7.2 4.1 4.1 0 0 1-3-1.4c.1 1.9.9 3.4 2.2 4.5v2.7H9.1v-2.7c1.3-1.1 2.1-2.6 2.2-4.5a4.1 4.1 0 0 1-3 1.43.8 3.8 0 1 1 .8-7.2A3.8 3.8 0 0 1 12 2.6Z'/%3E%3C/g%3E%3Cg transform='translate(100 74) rotate(6) scale(1.05) translate(-12 -12)'%3E%3Cpath d='M12 2.6a3.8 3.8 0 0 1 2.9 6.2 3.8 3.8 0 1 1 .8 7.2 4.1 4.1 0 0 1-3-1.4c.1 1.9.9 3.4 2.2 4.5v2.7H9.1v-2.7c1.3-1.1 2.1-2.6 2.2-4.5a4.1 4.1 0 0 1-3 1.43.8 3.8 0 1 1 .8-7.2A3.8 3.8 0 0 1 12 2.6Z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"),
-    radial-gradient(122% 54% at 50% 25%, rgba(61, 220, 151, 0.05), transparent 71%);
+    radial-gradient(122% 54%
+      at calc(50% + var(--tilt-x) * 11%) calc(25% + var(--tilt-y) * 9%),
+      rgba(61, 220, 151, 0.05), transparent 71%);
   background-size: 64px 64px, auto;
   background-repeat: repeat, no-repeat;
+  background-position:
+    calc(var(--tilt-x) * -13px) calc(var(--tilt-y) * -9px),
+    0 0;
 }
 
 /* Anybody who has asked their phone for more contrast gets a plain black
    table. Texture behind text is the first thing to go. */
 @media (prefers-contrast: more) {
   .felt { background-image: none; }
+}
+
+/* The table in layers. Tilting the phone slides each one by a different
+   amount, so they separate the way things at different distances do: the
+   pattern on the cloth is furthest away and slides against the movement, the
+   other players sit just above it, the board above them, and your own cards
+   nearest of all and moving most. It is only ever a few pixels, because the
+   point is depth rather than a visible slide.
+
+   Transforms rather than offsets, so none of this touches layout. Every
+   number resolves to zero when --tilt-x and --tilt-y are zero, which is what
+   they are on a desktop, with the tilt turned off, and before the phone has
+   been asked for permission. */
+.opponents { transform: translate3d(calc(var(--tilt-x) * 3px), calc(var(--tilt-y) * 2px), 0); }
+.middle { transform: translate3d(calc(var(--tilt-x) * 6px), calc(var(--tilt-y) * 4px), 0); }
+.hero-cards-wrap { transform: translate3d(calc(var(--tilt-x) * 10px), calc(var(--tilt-y) * 6px), 0); }
+
+/* Nobody who has asked for less movement gets any of it, whatever the setting
+   says and whatever the sensor is reporting. */
+@media (prefers-reduced-motion: reduce) {
+  :root { --tilt-x: 0; --tilt-y: 0; }
+  .opponents, .middle, .hero-cards-wrap { transform: none; }
 }
 
 /* ------------------------------------------------------------- opponents */
@@ -444,19 +504,22 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
   overflow: hidden;
 }
 
+.card.back,
 .slot-face.back {
-  background:
-    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.85) 0 7%, transparent 7.5%),
-    radial-gradient(circle at 50% 50%, transparent 0 15%, rgba(255, 255, 255, 0.42) 15% 17%, transparent 17.5%),
-    radial-gradient(circle at 50% 50%, transparent 0 27%, rgba(255, 255, 255, 0.3) 27% 28.5%, transparent 29%),
-    radial-gradient(circle at 50% 50%, transparent 0 38%, rgba(255, 255, 255, 0.22) 38% 39.5%, transparent 40%),
-    radial-gradient(circle at 50% 45%, #f8736a 0%, var(--card-back) 72%);
+  background-image: var(--back-gloss), var(--card-back-art);
+  background-size: 320% 100%, auto, auto, auto, auto, auto;
+  background-repeat: no-repeat;
+  background-position: var(--back-gloss-at);
   border: 3px solid var(--card-face);
   padding: 0;
 }
 
 .slot-face.front {
-  background: var(--card-face);
+  background-color: var(--card-face);
+  background-image: var(--card-gloss);
+  background-size: 320% 100%, auto;
+  background-repeat: no-repeat, no-repeat;
+  background-position: var(--card-gloss-at);
   color: var(--card-black);
   transform: rotateY(180deg);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
@@ -473,7 +536,11 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
   flex: 1 1 0;
   aspect-ratio: 5 / 7;
   border-radius: var(--radius);
-  background: var(--card-face);
+  background-color: var(--card-face);
+  background-image: var(--card-gloss);
+  background-size: 320% 100%, auto;
+  background-repeat: no-repeat, no-repeat;
+  background-position: var(--card-gloss-at);
   color: var(--card-black);
   display: flex;
   flex-direction: column;
@@ -489,17 +556,6 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
 .card .rank { font-size: 21px; letter-spacing: -0.03em; }
 .card .suit { font-size: 15px; }
 .card.red { color: var(--card-red); }
-
-.card.back {
-  background:
-    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.85) 0 7%, transparent 7.5%),
-    radial-gradient(circle at 50% 50%, transparent 0 15%, rgba(255, 255, 255, 0.42) 15% 17%, transparent 17.5%),
-    radial-gradient(circle at 50% 50%, transparent 0 27%, rgba(255, 255, 255, 0.3) 27% 28.5%, transparent 29%),
-    radial-gradient(circle at 50% 50%, transparent 0 38%, rgba(255, 255, 255, 0.22) 38% 39.5%, transparent 40%),
-    radial-gradient(circle at 50% 45%, #f8736a 0%, var(--card-back) 72%);
-  border: 3px solid var(--card-face);
-  padding: 0;
-}
 
 .card.empty {
   background: transparent;

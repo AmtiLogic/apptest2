@@ -37,6 +37,17 @@ try {
   reducedMotion = false;
 }
 
+/**
+ * Publish the tilt so the stylesheet can use it. Two numbers on the root
+ * element and nothing else: what moves, and by how much, is decided in CSS
+ * where the rest of the look lives.
+ */
+export function setTilt(x, y) {
+  const root = document.documentElement;
+  root.style.setProperty('--tilt-x', String(Math.round(x * 1000) / 1000));
+  root.style.setProperty('--tilt-y', String(Math.round(y * 1000) / 1000));
+}
+
 export function prefersReducedMotion() {
   return reducedMotion;
 }
