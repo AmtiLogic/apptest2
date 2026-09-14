@@ -321,6 +321,23 @@ at its own size and the surplus falls below it as one gap between the table
 and the commentary, so a tall phone reads as a table with felt under it
 rather than as a board stranded between two voids.
 
+The bet sizer is the one thing that can ask for more height than the screen
+has. It replaces a row of buttons about 54px tall with a panel of around 205px,
+and on a tall phone the slack is there while on a short one it is not. It used
+to take the room anyway by running off the bottom of the screen: on a 568px
+phone the confirm button sat 38px below the fold, so you could open the sizer
+and have no way to raise. A 664px phone lost the bottom edge of the panel.
+
+Opening it now marks the body, and the things above it that can spare height
+give it up: the commentary is one line and goes, the coach yields further than
+it normally does, and the board stops holding its margins. On the shortest
+screens the sizer also trims itself, losing the air around its rows and some of
+the size of the number, never the tap targets. Measured at 320, 390, 393 and
+430 wide: the panel and its confirm button are fully on screen at all four.
+
+Nothing below the sizer is allowed to move to make this work. The confirm
+button is the reason the panel is open.
+
 When height runs out the coach is what gives way, because it scrolls and the
 board cannot: a squeezed board just overflows its own padding and ends up
 touching the seats. The board is also capped in width, because board width

@@ -947,6 +947,7 @@ export function hideBanner() {
 export function renderActionRow(options) {
   const area = dom.actionArea;
   clear(area);
+  document.body.classList.remove('sizing');
   const legal = options.legal;
   // There is no fold button any more. Throwing the cards away is the gesture,
   // and it is only live when folding is a real choice: giving up a free check
@@ -993,6 +994,11 @@ export function renderBetSizer(options) {
   const area = dom.actionArea;
   clear(area);
   setFoldGesture(false);
+  // The sizer is three times the height of the row it replaces. On a short
+  // phone that height does not exist, and it used to be taken by running off
+  // the bottom of the screen, which put the confirm button somewhere no thumb
+  // could reach. The class lets the table above give the room up instead.
+  document.body.classList.add('sizing');
   const legal = options.legal;
   const box = el('div', 'bet-sizer');
 
@@ -1085,6 +1091,7 @@ let waitingRow = null;
  */
 export function renderWaiting(text, onSkip) {
   setFoldGesture(false);
+  document.body.classList.remove('sizing');
   if (!waitingRow || waitingRow.row.parentNode !== dom.actionArea) {
     clear(dom.actionArea);
     const row = el('div', 'action-row');
@@ -1108,6 +1115,7 @@ export function renderWaiting(text, onSkip) {
 
 export function renderNextHand(onNext) {
   setFoldGesture(false);
+  document.body.classList.remove('sizing');
   clear(dom.actionArea);
   const btn = el('button', 'next-btn', 'Next hand');
   btn.type = 'button';

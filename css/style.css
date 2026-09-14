@@ -857,6 +857,14 @@ body.can-fold .hero-zone { padding-top: 30px; }
   padding: 10px 12px 12px;
 }
 
+/* Room for the sizer, taken from the things that can spare it. The coach
+   scrolls and the commentary is one line, so both give way before anything
+   that has a control in it. Nothing below the sizer may be moved: the confirm
+   button is the whole point of the panel being open. */
+body.sizing .coach-banner { max-height: 18vh; }
+body.sizing .table-message { display: none; }
+body.sizing .middle { margin-top: 0; margin-bottom: 0; }
+
 .sizer-top {
   display: flex;
   align-items: center;
@@ -912,7 +920,7 @@ input[type="range"]::-moz-range-thumb {
   width: 24px; height: 24px; border-radius: 50%; background: var(--ink); border: none;
 }
 
-.sizer-presets { display: flex; gap: 6px; margin: 2px 0 10px; }
+.sizer-presets { display: flex; gap: 6px; margin: 2px 0 8px; }
 
 .preset-btn {
   flex: 1 1 0;
@@ -1907,6 +1915,23 @@ body.folding .hero-readout { opacity: 0.4; transition: opacity 0.16s ease; }
      breathing room than a live decision does. */
   body.showing-result .hero-zone { padding-top: 8px; }
   body.showing-result .action-area { margin-top: 10px; }
+
+  /* The sizer on the shortest screen. It is the tallest thing the app ever
+     puts in the action area, and this is the only height where it does not
+     simply fit. Every row keeps a tap target you can hit; what comes out is
+     the air around them and the size of the number, which is large because it
+     is the thing you are reading, not because it needs to be. */
+  .bet-sizer { padding: 8px 10px 8px; }
+  .sizer-amount { font-size: 20px; }
+  .sizer-cancel { width: 34px; height: 34px; }
+  body.sizing .hero-zone { padding-top: 8px; }
+  body.sizing .action-area { margin-top: 8px; }
+  body.sizing .coach-banner { display: none; }
+  input[type="range"] { height: 26px; }
+  input[type="range"]::-webkit-slider-thumb { width: 22px; height: 22px; margin-top: -9px; }
+  .sizer-presets { margin: 2px 0 6px; }
+  .preset-btn { min-height: 36px; }
+  .sizer-confirm { min-height: 44px; }
 }
 
 /* Narrow phones. Everything in the top bar has to fit across 320px, and at
