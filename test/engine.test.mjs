@@ -1662,9 +1662,13 @@ test('smoothing closes the gap without ever overshooting it', () => {
   let v = 0;
   for (let i = 0; i < 200; i += 1) {
     const next = approach(v, 1);
-    assert.ok(next > v, 'each step moves toward the target');
     assert.ok(next <= 1, 'no step passes the target');
+    assert.ok(next >= v, 'no step goes backwards');
     v = next;
+    // Never strictly increasing forever: an exponential approach has a fixed
+    // point and settles onto it, so demanding movement on every one of two
+    // hundred frames is a claim about floating point, not about the easing.
+    if (i === 20) assert.ok(v > 0.9, 'and it is quick about it');
   }
   assert.ok(Math.abs(1 - v) < EPSILON, 'it gets there');
 });

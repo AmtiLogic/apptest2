@@ -480,13 +480,22 @@ function renderProgress() {
   });
 }
 
-function finishHand() {
+/**
+ * Settle the hand. With `straightOn` the next one is dealt immediately instead
+ * of stopping on the result, which is what skipping wants: you folded, so
+ * there is nothing here you were waiting to read.
+ *
+ * The bookkeeping is the same either way. Nothing about the run, the stats or
+ * the saved game depends on the result being looked at.
+ */
+function finishHand(straightOn) {
   const t = state.table;
   render();
-  if (t.results) {
+  if (t.results && !straightOn) {
     ui.setMessage('');
     ui.showResult(buildResult(t, t.results));
   }
+  let advance = dealNewHand;
   if (state.run && !state.run.over) {
     const run = state.run;
     run.stack = hero().stack;
@@ -494,12 +503,15 @@ function finishHand() {
     run.handsThisSector += 1;
     run.handsPlayed += 1;
     renderRunHud();
-    ui.renderNextHand(nextInRun);
-  } else {
-    ui.renderNextHand(dealNewHand);
+    advance = nextInRun;
   }
   save();
   saveGame();
+  // Straight on still goes through the same door, so the end of a step and
+  // the end of a run still stop and show themselves. Only the result of an
+  // ordinary hand is what gets skipped past.
+  if (straightOn) advance();
+  else ui.renderNextHand(advance);
 }
 
 // ------------------------------------------------------------------- runs
@@ -734,8 +746,9 @@ function heroIsDoneActing() {
 }
 
 /**
- * Play the rest of the hand out at once, every street of it, and stop on the
- * result.
+ * Play the rest of the hand out at once, every street of it, and deal the next
+ * one. Skipping is offered only when you have folded or are all in, so there
+ * is no decision of yours in what it plays and no result you are waiting on.
  */
 function skipToEnd() {
   const t = state.table;
@@ -754,7 +767,8 @@ function skipToEnd() {
   }
   saveGame();
   render();
-  step();
+  if (t.handOver) finishHand(true);
+  else step();
 }
 
 // ----------------------------------------------------------- hero actions

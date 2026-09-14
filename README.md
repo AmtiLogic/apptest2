@@ -262,11 +262,18 @@ Swiping a fold now throws your cards up toward the middle of the table, which
 is where cards actually go when you muck them.
 
 Once the hand can no longer ask you anything, a **Skip hand** button sits
-next to the waiting line. One press plays out everything that is left: the
-rest of this betting round, every street after it, and the showdown, stopping
-on the result. It is offered when you have folded and when you are all in,
-which are the two states with no decision of yours left in them, so it can
-never skip past something you were meant to answer.
+next to the waiting line. One press plays out everything that is left, the rest
+of this betting round and every street after it, and deals the next hand. It
+does not stop on the result: you folded, so there is nothing there you were
+waiting to read, and a press that needs a second press to finish the thought is
+not a skip. It is offered when you have folded and when you are all in, which
+are the two states with no decision of yours left in them, so it can never skip
+past something you were meant to answer.
+
+Going straight on does not skip the shape of a run. The end of a step and the
+end of a run still stop and show themselves, because skipping hands the game to
+the same function the button would have called rather than dealing a hand
+itself. Only an ordinary hand's result is what gets passed by.
 
 The button is built once and written into, not rebuilt. A bot acts as often
 as three times a second, and redrawing the row each time made the button a
@@ -363,7 +370,12 @@ ten pixels. The point is depth, not a visible slide.
 
 The same tilt moves one light. It drifts across the table and sweeps a band of
 gloss along the card faces and the card backs, so the cards catch it the way a
-plastic coated card does when you turn it in your hand.
+plastic coated card does when you turn it in your hand. The highlight is a
+bright core with a soft halo and every stop in it is white: an earlier version
+flanked it with grey shoulders to give it contrast, and grey on a white card
+does not read as gloss, it reads as a dirty card. The base carries that job
+instead. The sweep also stops short of carrying the highlight off the edge,
+because a card with the light gone looks worse than one that never had any.
 
 `js/tilt.js` owns all of it and knows nothing about the table. It reads the
 phone's orientation, turns it into two numbers between -1 and 1, and hands them

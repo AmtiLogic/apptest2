@@ -10,11 +10,16 @@
 /** Degrees of tilt from the resting position that count as all the way over. */
 export const TILT_RANGE = 22;
 
-/** How much of the gap to the new reading to close each frame. */
-export const SMOOTHING = 0.14;
+/**
+ * How much of the gap to the new reading to close each frame. High enough that
+ * the table tracks the phone rather than drifting after it, low enough that a
+ * hand shake does not show. At 0.14 it lagged behind the movement, which is
+ * what makes an effect feel loose.
+ */
+export const SMOOTHING = 0.22;
 
 /** Below this, a change is not worth touching the page for. */
-export const EPSILON = 0.002;
+export const EPSILON = 0.003;
 
 export function clamp(value, low, high) {
   return Math.max(low, Math.min(high, value));

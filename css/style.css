@@ -42,18 +42,24 @@
   --tilt-x: 0;
   --tilt-y: 0;
 
-  /* The finish on a card: a band of gloss over paper that is a shade off
-     white along its length. White on white would be nothing, so the base has
-     to give the band something to be brighter than. */
+  /* The finish on a card: a bright core with a soft halo either side, over
+     paper that is a shade off white along its whole length. White on white
+     would be nothing, so the base has to give the highlight something to be
+     brighter than. That job used to be done by grey shoulders flanking the
+     band, and grey on white does not read as gloss, it reads as a dirty
+     card. The base carries it now and every stop in the highlight is white. */
   --card-gloss:
     linear-gradient(104deg,
-      rgba(146, 158, 176, 0) 30%,
-      rgba(146, 158, 176, 0.10) 41%,
-      rgba(255, 255, 255, 1) 50%,
-      rgba(146, 158, 176, 0.10) 59%,
-      rgba(146, 158, 176, 0) 70%),
-    linear-gradient(152deg, #fcfdfe 0%, #e7ebf2 100%);
-  --card-gloss-at: calc(50% - var(--tilt-x) * 25%) 0, 0 0;
+      rgba(255, 255, 255, 0) 30%,
+      rgba(255, 255, 255, 0.35) 44%,
+      rgba(255, 255, 255, 0.95) 50%,
+      rgba(255, 255, 255, 0.35) 56%,
+      rgba(255, 255, 255, 0) 70%),
+    linear-gradient(160deg, #e9edf4 0%, #dfe5ee 100%);
+  /* The sweep stops short of carrying the highlight off the card. At a quarter
+     it left at full tilt and the card went flat, which is the one position a
+     gloss must not look worse than no gloss at all. */
+  --card-gloss-at: calc(50% - var(--tilt-x) * 18%) 0, 0 0;
 
   /* The back of a card, named once because both the board slots and the hand
      draw the same thing, with its own quieter band of gloss over it. */
@@ -68,7 +74,7 @@
       rgba(255, 255, 255, 0) 38%,
       rgba(255, 255, 255, 0.26) 48%,
       rgba(255, 255, 255, 0) 58%);
-  --back-gloss-at: calc(50% - var(--tilt-x) * 25%) 0, 0 0, 0 0, 0 0, 0 0, 0 0;
+  --back-gloss-at: calc(50% - var(--tilt-x) * 18%) 0, 0 0, 0 0, 0 0, 0 0, 0 0;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -215,7 +221,7 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
   background-size: 60px 60px, auto;
   background-repeat: repeat, no-repeat;
   background-position:
-    calc(var(--tilt-x) * -26px) calc(var(--tilt-y) * -18px),
+    calc(var(--tilt-x) * -15px) calc(var(--tilt-y) * -11px),
     0 0;
 }
 
@@ -241,9 +247,9 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
    number resolves to zero when --tilt-x and --tilt-y are zero, which is what
    they are on a desktop, with the tilt turned off, and before the phone has
    been asked for permission. */
-.opponents { transform: translate3d(calc(var(--tilt-x) * 4px), calc(var(--tilt-y) * 4px), 0); }
-.middle { transform: translate3d(calc(var(--tilt-x) * 7px), calc(var(--tilt-y) * 8px), 0); }
-.hero-cards-wrap { transform: translate3d(calc(var(--tilt-x) * 11px), calc(var(--tilt-y) * 13px), 0); }
+.opponents { transform: translate3d(calc(var(--tilt-x) * 3px), calc(var(--tilt-y) * 3px), 0); }
+.middle { transform: translate3d(calc(var(--tilt-x) * 5px), calc(var(--tilt-y) * 5px), 0); }
+.hero-cards-wrap { transform: translate3d(calc(var(--tilt-x) * 8px), calc(var(--tilt-y) * 8px), 0); }
 
 /* Nobody who has asked for less movement gets any of it, whatever the setting
    says and whatever the sensor is reporting. */
