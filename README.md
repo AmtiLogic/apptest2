@@ -412,7 +412,16 @@ to keep their full size while the comment beneath them was squeezed to two
 faded lines, which is the wrong thing giving way. The cards shrink to fifty
 pixels between hands, the result box tightens, and on short screens the
 result goes on one line, who won and with what side by side, which hands the
-comment back the twenty five pixels it needed.
+comment back the twenty five pixels it needed. At nine seats between hands
+the seats give a little too, since their action labels are stale by then.
+
+Measured with a comment on screen, on your turn to press Next hand: fully
+shown at six and nine seats on 852 and 664 tall phones. On the 568px SE it
+is fully shown at six seats for an ordinary comment, and at nine seats the
+last line's final few pixels sit under the scroll fade, which is the floor:
+the next thing to trim would be the seats at showdown, and those are
+information. A comment with a diagram in it scrolls on the SE at any seat
+count, and the fade says so.
 
 When height runs out the coach is what gives way, because it scrolls and the
 board cannot: a squeezed board just overflows its own padding and ends up
