@@ -2109,3 +2109,174 @@ body.folding .hero-readout { opacity: 0.4; transition: opacity 0.16s ease; }
   .level-fill { transition: none; }
   .fold-hint.loud { opacity: 1; }
 }
+
+/* ------------------------------------------------------------- landscape */
+
+/* A phone on its side. Under about 520px tall there is no room for the table
+   to be a column, so it becomes two: the seats, the board and the commentary
+   on the left, the coach on the right where it can scroll, and your seat and
+   the buttons side by side along the bottom. Nothing in the DOM moves; the
+   grid places the same elements. Anything taller than this, an iPad on its
+   side say, keeps the column, which already caps its own width. */
+@media (orientation: landscape) and (max-height: 520px) {
+  :root { --tap: 46px; --v-tight: 4px; --v-step: 6px; --v-block: 6px; }
+
+  .topbar { padding: 6px var(--pad) 6px; max-width: none; }
+  /* Sideways there is width to spare and no height, so the hand counter and
+     the level share a line. In run mode the run line made the bar a row
+     taller and the table two pixels too tall for the screen. */
+  .topbar-left {
+    display: grid;
+    grid-template-columns: auto auto;
+    grid-template-areas: "hand level" "track track" "run run";
+    column-gap: 10px;
+    align-items: baseline;
+  }
+  .hand-counter { grid-area: hand; }
+  .level-line { grid-area: level; }
+  .level-track { grid-area: track; width: 90px; margin-top: 2px; }
+  .run-line { grid-area: run; margin-top: 2px; }
+
+  .felt {
+    max-width: none;
+    margin: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto auto minmax(0, 1fr) auto;
+    /* The seats run the full width. In one column they wrapped onto two rows
+       on a narrower phone, which doubled their height and pushed the top row
+       of them off the screen. Across the top they never wrap.
+
+       The coach takes the whole right column under them, beside the board,
+       the result and the commentary, and scrolls inside it. The one flexible
+       row has nothing of the left column in it, on purpose: when the
+       commentary shared the flexible row it was the commentary that
+       collapsed to nothing and was drawn over your cards. Every row with
+       content in it is sized to that content; only the coach stretches. */
+    grid-template-areas:
+      "chip  chip"
+      "opp   opp"
+      "mid   coach"
+      "res   coach"
+      "msg   coach"
+      ".     coach"
+      "hero  hero";
+    column-gap: 14px;
+    row-gap: 0;
+    align-items: start;
+  }
+  /* The lesson chip lives in the top bar on its side, in the empty middle
+     between the hand counter and the buttons, where it costs the table
+     nothing. In the table's own grid it was the item that got squeezed when
+     the height ran out, to a sliver four pixels tall. */
+  #app { position: relative; }
+  .lesson-chip {
+    grid-area: chip;
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: auto;
+    max-width: min(40vw, 400px);
+    margin: 0;
+    padding: 4px 11px;
+    font-size: 11px;
+    z-index: 3;
+  }
+  .opponents { grid-area: opp; flex-wrap: nowrap; }
+  /* One row, whatever the seat count. The portrait rule caps a seat at a
+     quarter of the width so nine wrap to three rows, which is the whole
+     height of this screen. Here they share the row equally and shrink. */
+  .opponents .seat { flex: 1 1 0; min-width: 0; max-width: 110px; }
+  .opponents.many .seat { flex: 1 1 0; min-width: 0; max-width: 11.1%; padding: 4px 0 2px; }
+  .opponents.many .seat-name { font-size: 9px; }
+  .opponents.many .seat-stack { font-size: 11px; }
+  /* No min-height: 0 here. It told the grid the board's row could shrink
+     to nothing, and on the shortest screen it did, to twelve pixels. */
+  .middle { grid-area: mid; margin: 0; align-self: start; }
+  .hand-result { grid-area: res; margin: 4px 0 0; }
+  .table-message { grid-area: msg; margin: 4px 0 0; align-self: start; }
+  .coach-banner {
+    grid-area: coach;
+    margin: 0;
+    max-height: none;
+    min-height: 0;
+    align-self: stretch;
+  }
+  .hero-zone {
+    grid-area: hero;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 14px;
+    align-items: end;
+    padding: 6px 0 6px;
+  }
+  body.can-fold .hero-zone { padding-top: 22px; }
+  .fold-hint { top: -16px; }
+  .hero-seat { align-items: flex-end; }
+  .action-area { margin-top: 0; min-height: var(--tap); }
+  body.showing-result .hero-zone { padding-top: 6px; }
+  body.showing-result .action-area { margin-top: 0; }
+
+  /* Everything a size down, because the whole table is half as tall. */
+  .seat { padding: 4px 2px 2px; }
+  .seat-avatar { font-size: 24px; }
+  .seat-name { font-size: 10px; margin-top: 2px; }
+  .seat-stack { font-size: 12px; }
+  .seat-hole { min-height: 14px; }
+  .mini-card { width: 10px; height: 14px; }
+  .opponents.many .seat { flex: 1 1 18%; }
+  .board { max-width: 236px; }
+  .card .rank, .hero-cards .card .rank { font-size: 20px; }
+  .card .suit, .hero-cards .card .suit { font-size: 13px; }
+  .hero-cards .card { width: 60px; }
+  .hero-readout { padding: 7px 10px; font-size: 12px; }
+  .coach-text { font-size: 13px; }
+  .coach-banner { padding: 9px 11px; }
+
+  /* The bet sizer folds into two rows, or it would push your cards off the
+     top of the screen. Amount and cancel with the slider beside them, then
+     the presets with the confirm beside them. Every target stays tappable. */
+  .bet-sizer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+    grid-template-areas: "top slider" "presets confirm";
+    column-gap: 10px;
+    row-gap: 6px;
+    align-items: center;
+    padding: 8px 10px;
+  }
+  .sizer-top { grid-area: top; }
+  .bet-sizer input[type="range"] { grid-area: slider; height: 28px; }
+  .sizer-presets { grid-area: presets; margin: 0; }
+  .sizer-confirm { grid-area: confirm; min-height: 40px; }
+  .sizer-amount { font-size: 20px; }
+  .sizer-cancel { width: 32px; height: 32px; }
+  .preset-btn { min-height: 36px; font-size: 11px; }
+  body.sizing .lesson-chip { display: none; }
+  body.sizing .coach-banner { display: none; }
+  body.sizing .table-message { display: none; }
+}
+
+/* The shortest phone on its side, 320px tall. Seats, board and your cards all
+   give a little, or the sum of them is seventy pixels more than the screen.
+   Face down cards at the seats are the first thing to go: a dimmed seat
+   already says what they say. */
+@media (orientation: landscape) and (max-height: 340px) {
+  .topbar { padding: 4px var(--pad) 4px; }
+  .seat-hole { display: none; }
+  .seat-avatar { font-size: 20px; }
+  .seat-meta { min-height: 11px; }
+  .seat-bet { margin-top: 1px; font-size: 9px; padding: 0 6px; }
+  .board { max-width: 196px; }
+  .card .rank, .hero-cards .card .rank { font-size: 17px; }
+  .card .suit, .hero-cards .card .suit { font-size: 11px; }
+  .hero-cards .card { width: 48px; }
+  .hero-readout { padding: 5px 8px; font-size: 11px; }
+  body.can-fold .hero-zone { padding-top: 14px; }
+  .fold-hint { top: -11px; font-size: 9px; }
+  .hero-zone { padding: 4px 0 4px; }
+  .table-message { font-size: 11px; }
+  /* Narrower still, or it runs into the hand counter beside it. */
+  .lesson-chip { max-width: 30vw; }
+}

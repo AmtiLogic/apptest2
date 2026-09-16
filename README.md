@@ -414,6 +414,42 @@ Height is `100dvh` with `100%` as the fallback. On iOS `100%` resolves
 against the small viewport, so once the browser chrome hides, the page stays
 short and leaves a band of dead black under the controls.
 
+## On its side
+
+The app was locked to portrait. It is not now, and under about 520px tall in
+landscape the table stops being a column and becomes two: the seats in one row
+across the top, the board, the result and the commentary down the left, the
+coach down the right where it scrolls, and your seat and the buttons side by
+side along the bottom. Nothing in the markup moves; a grid places the same
+elements. Anything taller than that on its side, an iPad, keeps the column,
+which already caps its own width.
+
+Three things had to be learned by measuring rather than reasoning.
+
+The seats cannot share a column. In half the width they wrap to two rows on a
+narrower phone and three at nine seats, which is most of the height of the
+screen. Across the top they never wrap, and at nine they share the row equally
+and shrink rather than obeying the portrait cap of a quarter of the width each.
+
+The coach needs a flexible row that nothing else is in. When it shared one
+with the commentary, the commentary was what collapsed, to nothing, and was
+drawn over your cards. And the board's row must not be told it can shrink: a
+`min-height: 0` meant for flex let the grid squeeze it to twelve pixels on the
+shortest screen with the cards spilling out of it. Every row with content in
+it is sized to that content now; only the coach stretches.
+
+The shortest phone on its side is 320px tall and the sum of everything was
+seventy pixels more than that. Face down cards at the seats go first, since a
+dimmed seat already says what they say, and the seats, board and your cards
+each give a little. The bet sizer folds into two rows there, amount and slider
+on one, presets and confirm on the other, or it would push your cards off the
+top of the screen.
+
+Measured at 568 by 320, 844 by 390 and 932 by 430, at six and nine seats, on
+your turn with the coach up: nothing off screen, the cards clear of the board,
+the coach never under 77px, the buttons and the sizer's confirm always on
+screen.
+
 ## The table
 
 The play area carries the same rings that are printed on the backs of the
