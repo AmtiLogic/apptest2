@@ -483,14 +483,24 @@ the movement, the other players sit just above it, the board above them, and
 your own cards nearest of all and moving most. Nothing travels more than about
 ten pixels. The point is depth, not a visible slide.
 
-The same tilt moves one light. It drifts across the table and sweeps a band of
-gloss along the card faces and the card backs, so the cards catch it the way a
-plastic coated card does when you turn it in your hand. The highlight is a
-bright core with a soft halo and every stop in it is white: an earlier version
-flanked it with grey shoulders to give it contrast, and grey on a white card
-does not read as gloss, it reads as a dirty card. The base carries that job
-instead. The sweep also stops short of carrying the highlight off the edge,
-because a card with the light gone looks worse than one that never had any.
+The same tilt moves one light. It drifts across the cloth and does three
+things to the cards. It sweeps a band of gloss along the faces and the backs.
+It moves a soft reflection of itself, a spot, across each card on both axes,
+which the band cannot do because a band can only slide one way. And it swings
+every card's shadow the other way, which is most of what makes the cards read
+as lying on the cloth rather than printed on it. The band is a bright core
+with a soft halo and every stop in it is white: an earlier version flanked it
+with grey shoulders for contrast, and grey on a white card reads as a dirty
+card. The sweep stops short of carrying the highlight off the edge, because a
+card with the light gone looks worse than one that never had any.
+
+The seats and your cards also turn a degree or so with the phone, with the
+vanishing point set on the table, so the surface reads as tilting rather than
+as sliding sideways. A degree is enough; at two the far edge of the seats
+visibly shrank, which is a card trick, not a table. The board between them
+slides but does not turn: it has its own perspective and its cards flip in 3D
+inside it, and turning their parent as well put every card on a plane the
+browser could not antialias, so their edges went jagged at any tilt.
 
 `js/tilt.js` owns all of it and knows nothing about the table. It reads the
 phone's orientation, turns it into two numbers between -1 and 1, and hands them

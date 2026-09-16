@@ -48,7 +48,15 @@
      brighter than. That job used to be done by grey shoulders flanking the
      band, and grey on white does not read as gloss, it reads as a dirty
      card. The base carries it now and every stop in the highlight is white. */
+  /* Where the lamp's reflection sits on a card, as a share of the card's
+     width and height. It moves on both axes with the phone, which the band
+     below it cannot: a band can only slide one way. The two together are
+     what a coated card does under a light. */
+  --spot-x: calc(36% + var(--tilt-x) * 30%);
+  --spot-y: calc(22% + var(--tilt-y) * 30%);
   --card-gloss:
+    radial-gradient(58% 42% at var(--spot-x) var(--spot-y),
+      rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0) 72%),
     linear-gradient(104deg,
       rgba(255, 255, 255, 0) 30%,
       rgba(255, 255, 255, 0.35) 44%,
@@ -59,7 +67,12 @@
   /* The sweep stops short of carrying the highlight off the card. At a quarter
      it left at full tilt and the card went flat, which is the one position a
      gloss must not look worse than no gloss at all. */
-  --card-gloss-at: calc(50% - var(--tilt-x) * 18%) 0, 0 0;
+  --card-gloss-at: 0 0, calc(50% - var(--tilt-x) * 18%) 0, 0 0;
+  /* Cards throw a shadow away from the lamp. The lamp is what the tilt moves,
+     so the shadows swing the other way, which is most of what makes the
+     cards read as lying on the cloth rather than printed on it. */
+  --card-shadow:
+    calc(var(--tilt-x) * -7px) calc(6px + var(--tilt-y) * -5px) 18px rgba(0, 0, 0, 0.45);
 
   /* The back of a card, named once because both the board slots and the hand
      draw the same thing, with its own quieter band of gloss over it. */
@@ -70,11 +83,13 @@
     radial-gradient(circle at 50% 50%, transparent 0 38%, rgba(255, 255, 255, 0.22) 38% 39.5%, transparent 40%),
     radial-gradient(circle at 50% 45%, #f8736a 0%, var(--card-back) 72%);
   --back-gloss:
+    radial-gradient(58% 42% at var(--spot-x) var(--spot-y),
+      rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0) 72%),
     linear-gradient(104deg,
       rgba(255, 255, 255, 0) 38%,
       rgba(255, 255, 255, 0.26) 48%,
       rgba(255, 255, 255, 0) 58%);
-  --back-gloss-at: calc(50% - var(--tilt-x) * 18%) 0, 0 0, 0 0, 0 0, 0 0, 0 0;
+  --back-gloss-at: 0 0, calc(50% - var(--tilt-x) * 18%) 0, 0 0, 0 0, 0 0, 0 0, 0 0;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -250,9 +265,29 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
    number resolves to zero when --tilt-x and --tilt-y are zero, which is what
    they are on a desktop, with the tilt turned off, and before the phone has
    been asked for permission. */
-.opponents { transform: translate3d(calc(var(--tilt-x) * 3px), calc(var(--tilt-y) * 3px), 0); }
-.middle { transform: translate3d(calc(var(--tilt-x) * 5px), calc(var(--tilt-y) * 5px), 0); }
-.hero-cards-wrap { transform: translate3d(calc(var(--tilt-x) * 8px), calc(var(--tilt-y) * 8px), 0); }
+/* And each layer turns a degree or so with the phone, with a vanishing point
+   set on the table, so the surface reads as tilting rather than as sliding
+   sideways. A degree is enough: at two the far edge of the seats visibly
+   shrank, which is a card trick, not a table. */
+.felt { perspective: 1100px; }
+.opponents {
+  transform:
+    translate3d(calc(var(--tilt-x) * 3px), calc(var(--tilt-y) * 3px), 0)
+    rotateY(calc(var(--tilt-x) * 1.1deg)) rotateX(calc(var(--tilt-y) * -1.1deg));
+}
+/* The board slides but does not turn. It has its own perspective and its cards
+   flip in 3D inside it, and turning their parent as well put every card on a
+   plane the browser could not antialias, so their edges went jagged at any
+   tilt. The seats above and your cards below turn, and the board between them
+   still reads as part of the same tilting surface. */
+.middle {
+  transform: translate3d(calc(var(--tilt-x) * 5px), calc(var(--tilt-y) * 5px), 0);
+}
+.hero-cards-wrap {
+  transform:
+    translate3d(calc(var(--tilt-x) * 8px), calc(var(--tilt-y) * 8px), 0)
+    rotateY(calc(var(--tilt-x) * 1.3deg)) rotateX(calc(var(--tilt-y) * -1.3deg));
+}
 
 /* Nobody who has asked for less movement gets any of it, whatever the setting
    says and whatever the sensor is reporting. */
@@ -566,7 +601,7 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
 .card.back,
 .slot-face.back {
   background-image: var(--back-gloss), var(--card-back-art);
-  background-size: 320% 100%, auto, auto, auto, auto, auto;
+  background-size: auto, 320% 100%, auto, auto, auto, auto, auto;
   background-repeat: no-repeat;
   background-position: var(--back-gloss-at);
   border: 3px solid var(--card-face);
@@ -576,12 +611,12 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
 .slot-face.front {
   background-color: var(--card-face);
   background-image: var(--card-gloss);
-  background-size: 320% 100%, auto;
-  background-repeat: no-repeat, no-repeat;
+  background-size: auto, 320% 100%, auto;
+  background-repeat: no-repeat, no-repeat, no-repeat;
   background-position: var(--card-gloss-at);
   color: var(--card-black);
   transform: rotateY(180deg);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--card-shadow);
 }
 .slot-face.front.red { color: var(--card-red); }
 .slot-face .rank { font-size: 21px; letter-spacing: -0.03em; }
@@ -597,8 +632,8 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
   border-radius: var(--radius);
   background-color: var(--card-face);
   background-image: var(--card-gloss);
-  background-size: 320% 100%, auto;
-  background-repeat: no-repeat, no-repeat;
+  background-size: auto, 320% 100%, auto;
+  background-repeat: no-repeat, no-repeat, no-repeat;
   background-position: var(--card-gloss-at);
   color: var(--card-black);
   display: flex;
@@ -1103,11 +1138,15 @@ body.folding .hero-readout { opacity: 0.4; transition: opacity 0.16s ease; }
   aspect-ratio: 5 / 7;
   border-radius: var(--radius-lg);
   padding: 8px 10px;
-  box-shadow: -6px 0 14px rgba(0, 0, 0, 0.6);
+  /* The fan's sideways shadow, swung with the lamp like every other card. */
+  box-shadow:
+    calc(-6px + var(--tilt-x) * -5px) calc(var(--tilt-y) * -5px) 14px rgba(0, 0, 0, 0.6);
 }
 .hero-cards .card:not(:first-child) {
   margin-left: -14px;
-  box-shadow: -3px 0 0 0 var(--bg), -9px 0 16px rgba(0, 0, 0, 0.55);
+  box-shadow:
+    -3px 0 0 0 var(--bg),
+    calc(-9px + var(--tilt-x) * -5px) calc(var(--tilt-y) * -5px) 16px rgba(0, 0, 0, 0.55);
 }
 .hero-cards .card .rank { font-size: 34px; }
 .hero-cards .card .suit { font-size: 24px; }
