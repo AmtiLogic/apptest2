@@ -2077,6 +2077,20 @@ body.folding .hero-readout { opacity: 0.4; transition: opacity 0.16s ease; }
   body.showing-result .result-top { flex: 1 1 auto; }
   body.showing-result .result-detail { margin-top: 0; flex: 0 1 auto; }
   body.showing-result .result-who { font-size: 16px; }
+  /* And the folded cards smaller still. At nine seats on a 664px phone the
+     comment was fourteen pixels short with the cards at fifty; at forty two
+     it has the room. */
+  body.showing-result .hero-cards .card { width: 42px; padding: 4px 5px; }
+  body.showing-result .hero-cards .card .rank { font-size: 18px; }
+  body.showing-result .hero-cards .card .suit { font-size: 12px; }
+  /* Nine seats are two rows here, and between hands the seats can be a
+     little smaller too: their action labels are stale by now and their
+     cards are shown or hidden already. Two rows at ten pixels less each is
+     the twenty the comment was short of at nine seats. */
+  body.showing-result .opponents.many .seat { padding-top: 3px; }
+  body.showing-result .opponents.many .seat-avatar { font-size: 19px; }
+  body.showing-result .opponents.many .seat-name { margin-top: 1px; }
+  body.showing-result .opponents.many .seat-action { min-height: 8px; line-height: 8px; }
   .hand-result { padding: 9px 12px; }
   .result-who { font-size: 16px; }
   .result-delta { font-size: 20px; }
