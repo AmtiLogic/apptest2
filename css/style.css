@@ -2073,7 +2073,7 @@ body.folding .hero-readout { opacity: 0.4; transition: opacity 0.16s ease; }
   #hand-result:not([hidden]) ~ #coach-banner { max-height: 22vh; }
   /* The result on one line here: who won and with what, side by side, and
      the swing on the right. Twenty five pixels back for the comment. */
-  body.showing-result .hand-result { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; padding: 8px 12px; }
+  body.showing-result .hand-result { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; padding: 6px 12px; margin-top: 8px; }
   body.showing-result .result-top { flex: 1 1 auto; }
   body.showing-result .result-detail { margin-top: 0; flex: 0 1 auto; }
   body.showing-result .result-who { font-size: 16px; }
