@@ -405,6 +405,15 @@ the size of the number, never the tap targets. Measured at 320, 390, 393 and
 Nothing below the sizer is allowed to move to make this work. The confirm
 button is the reason the panel is open.
 
+Between hands, your cards give way before the coach does. The comment on the
+hand you just played is the one thing on that screen worth reading, and your
+two folded cards at a quarter opacity are a record, not a decision. They used
+to keep their full size while the comment beneath them was squeezed to two
+faded lines, which is the wrong thing giving way. The cards shrink to fifty
+pixels between hands, the result box tightens, and on short screens the
+result goes on one line, who won and with what side by side, which hands the
+comment back the twenty five pixels it needed.
+
 When height runs out the coach is what gives way, because it scrolls and the
 board cannot: a squeezed board just overflows its own padding and ends up
 touching the seats. The board is also capped in width, because board width

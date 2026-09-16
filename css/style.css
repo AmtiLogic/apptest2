@@ -734,6 +734,20 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
    the last decision gives up room rather than pushing the table off screen. */
 #hand-result:not([hidden]) ~ #coach-banner { max-height: 26vh; }
 
+/* Between hands, your cards are a record and not a decision, and the coach's
+   comment on the hand is the one thing on the screen worth reading. So the
+   cards give up room rather than the comment. They used to keep their full
+   size at a quarter opacity while the comment beneath them was squeezed to
+   two faded lines, which is the wrong thing giving way. */
+body.showing-result .hero-zone { padding-top: 8px; padding-bottom: 10px; }
+body.showing-result .action-area { margin-top: 10px; }
+body.showing-result .hero-cards .card { width: 50px; padding: 5px 6px; }
+body.showing-result .hero-cards .card .rank { font-size: 21px; }
+body.showing-result .hero-cards .card .suit { font-size: 14px; }
+body.showing-result .hero-readout { padding: 7px 10px; font-size: 13px; }
+body.showing-result .hand-result { padding: 9px 13px; }
+.hero-cards .card { transition: width 0.28s cubic-bezier(0.2, 0.9, 0.3, 1), padding 0.28s ease; }
+
 .table-message:empty { min-height: 0; padding: 0; }
 
 .table-message {
@@ -2056,7 +2070,13 @@ body.folding .hero-readout { opacity: 0.4; transition: opacity 0.16s ease; }
      grade for the last decision, so nothing runs off the bottom. */
   body.showing-result .middle { min-height: 48px; }
   body.showing-result .board { max-width: 200px; }
-  #hand-result:not([hidden]) ~ #coach-banner { max-height: 16vh; }
+  #hand-result:not([hidden]) ~ #coach-banner { max-height: 22vh; }
+  /* The result on one line here: who won and with what, side by side, and
+     the swing on the right. Twenty five pixels back for the comment. */
+  body.showing-result .hand-result { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; padding: 8px 12px; }
+  body.showing-result .result-top { flex: 1 1 auto; }
+  body.showing-result .result-detail { margin-top: 0; flex: 0 1 auto; }
+  body.showing-result .result-who { font-size: 16px; }
   .hand-result { padding: 9px 12px; }
   .result-who { font-size: 16px; }
   .result-delta { font-size: 20px; }
