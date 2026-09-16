@@ -452,33 +452,28 @@ screen.
 
 ## The table
 
-The play area carries the same rings that are printed on the backs of the
-cards, tiled across it, with a soft light over the middle. The point is that
-the table and the deck are one set rather than two unrelated decorations: it is
-the card back motif, opened out and laid flat. Every ring crossing the edge of
-the tile is drawn on the far side of it too, so the repeat is seamless.
+The play area is baize: a deep green cloth with a fine diagonal weave, lit
+from above and darker toward the edges, which is what a card table looks like
+and is the whole of the decoration. Four layers, back to front: the lamp,
+which moves with the phone; the vignette, which does not; and two weaves at
+right angles that slide together as the furthest thing from the eye.
 
-It is an inline SVG in the stylesheet rather than an image file. It stays
-crisp at any pixel density, it costs about a kilobyte, and there is nothing
-extra to fetch or to keep in the offline cache.
+There is no motif. Three were tried in turn, a dot grain, the four suits in a
+half drop lattice, and the rings printed on the backs of the cards, and each
+was judged on its own before the next replaced it. Drawn side by side against
+a plain lit cloth, every one of them read as wallpaper. The lesson from the
+sheet was that the cloth is the pattern, and that a classy table is a quiet
+one. The lattice of thin double lines was the runner up, for anyone who wants
+a motif on top.
 
-Both layers are backgrounds on the play area rather than an element of their
-own, so nothing new joins the stacking order and the cards still fly over the
-top of everything exactly as they did. Nothing in the pattern is positioned
-relative to the board, because this area doubles in height between the
-smallest phone and the largest and anything anchored would land somewhere
-different on each of them. A first attempt drew the arc of a rail and it came
-out as two stray lines behind the coach, which is what that constraint looks
-like when you ignore it.
+Everything is a gradient, so there is nothing to fetch and nothing to keep in
+the offline cache. Nothing is positioned relative to the board, because this
+area doubles in height between the smallest phone and the largest and anything
+anchored lands somewhere different on each; the vignette is centred, which is
+the one placement that survives that.
 
-Two earlier patterns did not survive. A dot grain was texture nobody could
-name, and a scatter of the four suits was legible but was decoration sitting
-next to the cards rather than belonging with them. Candidates are drawn at full
-strength and compared as a sheet before anything is made faint, because a
-pattern that is wrong is wrong at every opacity.
-
-Asking your phone for more contrast turns the pattern off. Texture behind
-text is the first thing that should go.
+Asking your phone for more contrast turns the cloth off and leaves the flat
+colour. Texture behind text is the first thing that should go.
 
 ## Tilting the phone
 
