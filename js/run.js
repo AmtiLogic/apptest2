@@ -22,6 +22,12 @@ export const SECTORS = [
     focus: 'starting-hands',
     focusName: 'Which hands to play',
     brief: 'Loose players who call too much. The only thing that matters here is not playing rubbish before the flop.',
+    lesson: {
+      rule: 'Before the flop, fold most hands. Play pairs, two big cards, and cards that are close together and share a suit. Everything else loses money over time, even on the nights it wins.',
+      watch: 'Every choice you make about entering a pot before the flop.',
+      term: 'range',
+      termName: 'range'
+    },
     bigBlind: 2,
     pool: ['drifter', 'anchor', 'marlow']
   },
@@ -31,6 +37,12 @@ export const SECTORS = [
     focus: 'position',
     focusName: 'Where you are sitting',
     brief: 'The same hand is worth more when you act last. Play more of them late and fewer of them early.',
+    lesson: {
+      rule: 'The later you act, the more you know before you have to decide. Play more hands from the button and the seat before it, and fewer from the first seats to act. The same two cards are worth more late than early.',
+      watch: 'Hands that are fine to open from a late seat but not an early one. Opening one from the wrong seat, or folding one from the right seat.',
+      term: 'position',
+      termName: 'position'
+    },
     bigBlind: 4,
     pool: ['drifter', 'anchor', 'marlow', 'rock']
   },
@@ -40,6 +52,12 @@ export const SECTORS = [
     focus: 'pot-odds',
     focusName: 'What a call costs',
     brief: 'People bet at you now. A draw is only worth chasing when the pot is paying you enough to chase it.',
+    lesson: {
+      rule: 'A call is a price. Compare what you have to put in against what is already in the pot. Chase a draw only when the pot is paying you enough for how often the draw actually comes in.',
+      watch: 'Every call you make with a hand that still needs to improve to win.',
+      term: 'pot-odds',
+      termName: 'pot odds'
+    },
     bigBlind: 8,
     pool: ['rock', 'blaze', 'anchor', 'marlow']
   },
@@ -49,6 +67,12 @@ export const SECTORS = [
     focus: 'board-reading',
     focusName: 'What the board did to your hand',
     brief: 'Top pair is not the same hand on every flop. What beats you is written in the middle of the table.',
+    lesson: {
+      rule: 'Your hand is only as good as the board lets it be. Top pair on a dry flop is strong. Top pair on a board where a flush or a straight is already possible is not, and a big bet there is telling you so.',
+      watch: 'Calls and raises with a made hand after the board has changed what that hand is worth.',
+      term: 'board-texture',
+      termName: 'board texture'
+    },
     bigBlind: 15,
     pool: ['rock', 'blaze', 'marlow', 'anchor']
   },
@@ -58,6 +82,12 @@ export const SECTORS = [
     focus: 'aggression',
     focusName: 'Betting rather than calling',
     brief: 'Short stacks and big blinds. Waiting is losing here, and the players left will punish a passive hand.',
+    lesson: {
+      rule: 'A bet can win two ways: they fold, or they call with worse. A call can only win one way. With a hand worth playing, bet it. Checking with nothing gives up the first way for free.',
+      watch: 'Times you checked or called with a hand that should have bet, and bluffs with no reason to work.',
+      term: 'aggressive',
+      termName: 'aggression'
+    },
     bigBlind: 30,
     pool: ['blaze', 'rock', 'marlow']
   }
@@ -96,6 +126,13 @@ export function newRun(seedHands) {
     focusGood: 0,
     focusMistake: 0,
     leaks: {},
+    // Every idea, not only the step's own. The step is scored on its focus;
+    // this is what lets the stats say how each idea has gone over time.
+    concepts: {},
+    // How the hands went, as opposed to how the decisions were graded: pots
+    // won, money in, bets against calls. Filled in by the app at each hand's
+    // end so the record can say what style the run was played in.
+    play: null,
     handsAtStart: seedHands || 0,
     over: false,
     won: false,
@@ -159,12 +196,41 @@ export function recordDecision(run, verdict) {
   else if (verdict.verdict === 'mistake') run.mistake += 1;
   if (verdict.leak) run.leaks[verdict.leak] = (run.leaks[verdict.leak] || 0) + 1;
 
+  const concept = conceptOfVerdict(verdict);
+  if (concept) {
+    if (!run.concepts) run.concepts = {};
+    const c = run.concepts[concept] || (run.concepts[concept] = { n: 0, good: 0, mistake: 0 });
+    c.n += 1;
+    if (verdict.verdict === 'good') c.good += 1;
+    if (verdict.verdict === 'mistake') c.mistake += 1;
+  }
+
   const focus = sectorOf(run).focus;
-  if (conceptOfVerdict(verdict) === focus) {
+  if (concept === focus) {
     run.focusDecisions += 1;
     if (verdict.verdict === 'good') run.focusGood += 1;
     if (verdict.verdict === 'mistake') run.focusMistake += 1;
   }
+}
+
+/** True when a graded decision is on the idea the current step is about. */
+export function onLesson(run, verdict) {
+  return !!run && !run.over && conceptOfVerdict(verdict) === sectorOf(run).focus;
+}
+
+/** Where the step stands on its own idea, for the tally on screen. */
+export function focusTally(run) {
+  const n = run.focusDecisions || 0;
+  return {
+    n,
+    good: run.focusGood || 0,
+    mistake: run.focusMistake || 0,
+    clean: n - (run.focusMistake || 0),
+    // The step clears on a share, so what "enough" means in whole decisions
+    // depends on how many there have been. Three right of four is enough;
+    // three right of five is not.
+    onTrack: n === 0 || (n - (run.focusMistake || 0)) / n >= CLEAR_RATE
+  };
 }
 
 /**
@@ -238,6 +304,9 @@ export function runRecord(run) {
     fine: run.fine,
     mistake: run.mistake,
     leaks: Object.assign({}, run.leaks),
+    concepts: JSON.parse(JSON.stringify(run.concepts || {})),
+    play: run.play ? Object.assign({}, run.play) : null,
+    net: Math.round(run.stack) - STARTING_STACK,
     learned: run.sectorScores.filter((s) => s.mastered).map((s) => s.focus)
   };
 }

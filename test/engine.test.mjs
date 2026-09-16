@@ -18,6 +18,10 @@ import { botAction, buildSeats, buildRunSeats } from '../js/bots.js';
 import { parseMarkup, resolveSlug, plainText, TERMS } from '../js/glossary.js';
 import { liveNote, hasLiveNote } from '../js/live.js';
 import { tiltFrom, approach, settled, clamp, TILT_RANGE, EPSILON } from '../js/tilt.js';
+import {
+  handSummary, emptyPlay, addHand, styleOf, styleRead, trend, dayKey, addToDay,
+  daySeries, conceptTotals, conceptSeries, stepSeries, DAYS_KEPT, STYLE_MIN_HANDS
+} from '../js/stats.js';
 import { diagramData, oddsData, orderData, outsData, ladderData, rangeData } from '../js/diagrams.js';
 import {
   SECTORS, HANDS_PER_SECTOR, CONCEPTS, newRun, sectorOf, isLastSector,
@@ -1694,6 +1698,155 @@ test('the loop settles, so a still phone is not animating forever', () => {
 test('a tilt small enough to be a hand shake is treated as already settled', () => {
   assert.ok(settled({ x: 0, y: 0 }, { x: EPSILON / 2, y: -EPSILON / 2 }));
   assert.ok(!settled({ x: 0, y: 0 }, { x: EPSILON * 4, y: 0 }));
+});
+
+// --- stats -----------------------------------------------------------------
+
+function playedHand(seats, script) {
+  // A real table, driven by a script of hero actions, with every bot calling.
+  // What the hand says about the hero has to come out of the engine's own log.
+  const t = table(seats, 7);
+  startHand(t);
+  let i = 0;
+  let guard = 0;
+  while (!t.handOver && t.toAct >= 0 && guard++ < 200) {
+    if (t.toAct === 0) {
+      const legal = legalActions(t);
+      const want = script[i++] || 'call';
+      let action;
+      if (want === 'raise' && legal.canRaise) action = { type: 'raise', amount: legal.minRaiseTo };
+      else if (want === 'bet' && legal.canRaise && legal.isBet) action = { type: 'bet', amount: legal.minRaiseTo };
+      else if (want === 'fold') action = { type: 'fold' };
+      else action = legal.canCheck ? { type: 'check' } : { type: 'call' };
+      applyAction(t, action);
+    } else {
+      const legal = legalActions(t);
+      applyAction(t, legal.canCheck ? { type: 'check' } : { type: 'call' });
+    }
+  }
+  return t;
+}
+
+test('a hand the hero raised before the flop counts as entered and raised', () => {
+  const t = playedHand(3, ['raise', 'check', 'check', 'check']);
+  const h = handSummary(t, 0);
+  assert.equal(h.vpip, true);
+  assert.equal(h.pfr, true);
+  assert.ok(h.raises >= 1);
+  assert.equal(typeof h.net, 'number');
+});
+
+test('folding before the flop is not entering the pot', () => {
+  const t = playedHand(3, ['fold']);
+  const h = handSummary(t, 0);
+  assert.equal(h.vpip, false);
+  assert.equal(h.pfr, false);
+  assert.equal(h.showdown, false, 'a folded hand never reaches showdown');
+  assert.ok(h.net <= 0);
+});
+
+test('calling all the way is entering without raising and reaches showdown', () => {
+  const t = playedHand(3, ['call', 'check', 'check', 'check']);
+  const h = handSummary(t, 0);
+  assert.equal(h.vpip, true);
+  assert.equal(h.pfr, false);
+  assert.equal(h.showdown, true);
+  assert.equal(h.won, h.net > 0);
+  assert.equal(h.showdownWon, h.showdown && h.won);
+});
+
+test('play counters add up hand by hand', () => {
+  const p = emptyPlay();
+  addHand(p, { won: true, net: 10, showdown: true, showdownWon: true, vpip: true, pfr: true, bets: 1, raises: 1, calls: 0 });
+  addHand(p, { won: false, net: -3, showdown: false, showdownWon: false, vpip: false, pfr: false, bets: 0, raises: 0, calls: 0 });
+  addHand(p, { won: false, net: -5, showdown: true, showdownWon: false, vpip: true, pfr: false, bets: 0, raises: 0, calls: 2 });
+  assert.equal(p.hands, 3);
+  assert.equal(p.handsWon, 1);
+  assert.equal(p.showdowns, 2);
+  assert.equal(p.showdownsWon, 1);
+  assert.equal(p.net, 2);
+  assert.equal(p.vpipHands, 2);
+  assert.equal(p.pfrHands, 1);
+  const s = styleOf(p);
+  assert.equal(s.vpip, 2 / 3);
+  assert.equal(s.pfr, 1 / 3);
+  assert.equal(s.aggression, 1);
+  assert.equal(s.winRate, 1 / 3);
+  assert.equal(s.showdownRate, 0.5);
+});
+
+test('aggression with no calls to divide by is very high, never infinite', () => {
+  const p = emptyPlay();
+  addHand(p, { won: true, net: 4, showdown: false, showdownWon: false, vpip: true, pfr: true, bets: 0, raises: 1, calls: 0 });
+  assert.ok(Number.isFinite(styleOf(p).aggression));
+  assert.ok(styleOf(p).aggression > 1);
+});
+
+test('a style is not named until there are enough hands to name it', () => {
+  assert.equal(styleRead({ hands: STYLE_MIN_HANDS - 1, vpip: 0.1, aggression: 3 }).label, 'Too early to say');
+  assert.equal(styleRead({ hands: 40, vpip: 0.18, aggression: 2.0 }).label, 'Tight and aggressive');
+  assert.equal(styleRead({ hands: 40, vpip: 0.18, aggression: 0.5 }).label, 'Tight and passive');
+  assert.equal(styleRead({ hands: 40, vpip: 0.45, aggression: 2.0 }).label, 'Loose and aggressive');
+  assert.equal(styleRead({ hands: 40, vpip: 0.45, aggression: 0.4 }).label, 'Loose and passive');
+});
+
+test('a trend compares the last window with the one before it', () => {
+  const tr = trend([0.5, 0.5, 0.5, 0.5, 0.5, 0.8, 0.8, 0.8, 0.8, 0.8], 5);
+  assert.ok(tr.enough);
+  assert.ok(Math.abs(tr.recent - 0.8) < 1e-9);
+  assert.ok(Math.abs(tr.earlier - 0.5) < 1e-9);
+  assert.ok(Math.abs(tr.delta - 0.3) < 1e-9);
+});
+
+test('one window of values is a level, not a direction', () => {
+  assert.equal(trend([0.5, 0.6, 0.7], 5).enough, false);
+  assert.equal(trend([], 5).enough, false);
+  assert.equal(trend([0.5], 5).enough, false);
+});
+
+test('day buckets add up and the oldest fall off the end', () => {
+  const days = {};
+  const now = Date.now();
+  for (let i = 0; i < DAYS_KEPT + 20; i++) {
+    addToDay(days, dayKey(now - i * 86400000), { hands: 1, decisions: 2, good: 1 });
+  }
+  assert.equal(Object.keys(days).length, DAYS_KEPT, 'never more than the days kept');
+  const series = daySeries(days);
+  assert.equal(series.length, DAYS_KEPT);
+  assert.ok(series[0].key < series[series.length - 1].key, 'oldest first');
+  assert.equal(series[0].decisions, 2);
+  addToDay(days, dayKey(now), { good: 3 });
+  assert.equal(days[dayKey(now)].good, 4, 'adds rather than replaces');
+});
+
+test('ideas are totalled across runs and the run in hand', () => {
+  const history = [
+    { concepts: { position: { n: 4, good: 3, mistake: 1 } } },
+    { concepts: { position: { n: 2, good: 2, mistake: 0 }, 'pot-odds': { n: 1, good: 0, mistake: 1 } } },
+    { }
+  ];
+  const now = { concepts: { position: { n: 1, good: 0, mistake: 1 } } };
+  const t = conceptTotals(history, now);
+  assert.deepEqual(t.position, { n: 7, good: 5, mistake: 2 });
+  assert.deepEqual(t['pot-odds'], { n: 1, good: 0, mistake: 1 });
+  assert.equal(t.aggression, undefined, 'an idea never met is absent, not zero');
+});
+
+test('an idea\'s run by run series skips runs that never met it', () => {
+  const history = [
+    { concepts: { position: { n: 2, good: 2, mistake: 0 } } },
+    { concepts: {} },
+    { concepts: { position: { n: 4, good: 1, mistake: 2 } } }
+  ];
+  const series = conceptSeries(history, 'position');
+  assert.equal(series.length, 2);
+  assert.equal(series[0], 0.5, 'oldest first, mistakes out of total');
+  assert.equal(series[1], 1);
+});
+
+test('the step series reads oldest first and a win goes one past the top', () => {
+  const history = [{ won: true, sector: 4 }, { won: false, sector: 1 }, { won: false, sector: 0 }];
+  assert.deepEqual(stepSeries(history, 5), [1, 2, 6]);
 });
 
 // ---------------------------------------------------------------------------

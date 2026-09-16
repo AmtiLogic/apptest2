@@ -14,9 +14,13 @@ import { diagramData, oddsData } from './diagrams.js';
 import {
   SECTORS, HANDS_PER_SECTOR, CONCEPTS, STARTING_STACK, newRun, sectorOf,
   handsLeftInSector, tableChoices, recordDecision, advanceSector, bustRun,
-  runRecord, addRunRecord, historySummary
+  runRecord, addRunRecord, historySummary, onLesson, focusTally
 } from './run.js';
 import { startTilt, stopTilt, tiltAvailable, tiltIsRunning, tiltStatus, recentreTilt } from './tilt.js';
+import {
+  handSummary, emptyPlay, addHand, styleOf, styleRead, trend, dayKey, addToDay,
+  daySeries, conceptTotals, conceptSeries, stepSeries
+} from './stats.js';
 import * as ui from './ui.js';
 
 const STORAGE_KEY = 'holdem-coach-v1';
@@ -55,12 +59,17 @@ const DEFAULT_STATS = {
   fine: 0,
   mistake: 0,
   leaks: {},
-  botHands: {}
+  botHands: {},
+  // How the hands went, as opposed to how the decisions were graded.
+  play: null,
+  // One bucket a day, so "over time" has something to draw even on the
+  // endless table, where there is no run to hang a number on.
+  days: {}
 };
 
 const state = {
   settings: Object.assign({}, DEFAULT_SETTINGS),
-  stats: Object.assign({}, DEFAULT_STATS),
+  stats: Object.assign({}, DEFAULT_STATS, { play: emptyPlay(), days: {} }),
   progress: JSON.parse(JSON.stringify(DEFAULT_PROGRESS)),
   table: null,
   timer: null,
@@ -82,6 +91,8 @@ function load() {
       Object.assign(state.stats, DEFAULT_STATS, saved.stats);
       state.stats.leaks = Object.assign({}, saved.stats.leaks || {});
       state.stats.botHands = Object.assign({}, saved.stats.botHands || {});
+      state.stats.play = Object.assign(emptyPlay(), saved.stats.play || {});
+      state.stats.days = Object.assign({}, saved.stats.days || {});
     }
     if (saved && saved.progress) {
       Object.assign(state.progress, DEFAULT_PROGRESS, saved.progress);
@@ -400,9 +411,13 @@ function heroActs(action) {
       if (/[[]pot-odds/.test(verdict.text) || /[[]outs/.test(verdict.text)) {
         verdict.diagram = oddsData(t, HERO_SEAT);
       }
+      verdict.onLesson = onLesson(state.run, verdict) && inRun();
       recordVerdict(verdict);
       ui.showBanner(verdict);
       ui.flashReward(verdict.reward);
+      // The count on the lesson chip moves the moment the decision is graded,
+      // so you watch it build rather than meet it at the debrief.
+      if (verdict.onLesson) renderRunHud();
     }
   }
 
@@ -438,6 +453,11 @@ function recordVerdict(verdict) {
   if (inRun()) recordDecision(state.run, verdict);
   state.stats.decisions += 1;
   state.stats[verdict.verdict] = (state.stats[verdict.verdict] || 0) + 1;
+  addToDay(state.stats.days, dayKey(Date.now()), {
+    decisions: 1,
+    good: verdict.verdict === 'good' ? 1 : 0,
+    mistake: verdict.verdict === 'mistake' ? 1 : 0
+  });
   if (verdict.verdict === 'mistake' && verdict.leak) {
     state.stats.leaks[verdict.leak] = (state.stats.leaks[verdict.leak] || 0) + 1;
   }
@@ -490,6 +510,7 @@ function renderProgress() {
  */
 function finishHand(straightOn) {
   const t = state.table;
+  recordHandStats(t);
   render();
   if (t.results && !straightOn) {
     ui.setMessage('');
@@ -514,6 +535,22 @@ function finishHand(straightOn) {
   else ui.renderNextHand(advance);
 }
 
+/**
+ * What the hand said about how you play. Read from the log the engine kept,
+ * so a hand you skipped past counts exactly like one you watched.
+ */
+function recordHandStats(t) {
+  if (!t || !t.results) return;
+  const hand = handSummary(t, HERO_SEAT);
+  if (!state.stats.play) state.stats.play = emptyPlay();
+  addHand(state.stats.play, hand);
+  addToDay(state.stats.days, dayKey(Date.now()), { hands: 1, won: hand.won ? 1 : 0, net: hand.net });
+  if (inRun()) {
+    if (!state.run.play) state.run.play = emptyPlay();
+    addHand(state.run.play, hand);
+  }
+}
+
 // ------------------------------------------------------------------- runs
 
 function inRun() {
@@ -536,7 +573,8 @@ function renderRunHud() {
     handsPerSector: HANDS_PER_SECTOR,
     bigBlind: sector.bigBlind,
     stack: Math.round(run.stack),
-    blindsLeft: Math.floor(run.stack / sector.bigBlind)
+    blindsLeft: Math.floor(run.stack / sector.bigBlind),
+    tally: focusTally(run)
   });
 }
 
@@ -656,6 +694,7 @@ function nextStepBrief() {
     name: sector.name,
     focusName: sector.focusName,
     brief: sector.brief,
+    lesson: sector.lesson,
     bigBlind: sector.bigBlind,
     blindsLeft: Math.floor(state.run.stack / sector.bigBlind)
   };
@@ -671,6 +710,7 @@ function showTableChoice() {
     name: sector.name,
     focusName: sector.focusName,
     brief: sector.brief,
+    lesson: sector.lesson,
     bigBlind: sector.bigBlind,
     stack: Math.round(run.stack),
     blindsLeft: Math.floor(run.stack / sector.bigBlind),
@@ -958,14 +998,71 @@ function openStats() {
     const stats = state.stats;
     const graded = stats.decisions || 0;
     const pct = graded ? Math.round((stats.good / graded) * 100) : 0;
-
     const level = levelOf(state.progress.xp);
+    const play = stats.play || emptyPlay();
+    const style = styleOf(play);
+
     const grid = ui.el('div', 'stat-grid');
     grid.appendChild(statCard(level, 'Level'));
     grid.appendChild(statCard(pct + '%', 'Rated good'));
-    grid.appendChild(statCard(state.progress.bestStreak, 'Best clean run'));
+    grid.appendChild(statCard(stats.handsPlayed, 'Hands'));
     body.appendChild(grid);
 
+    // ---- Over time. The thing asked for most, so it comes first.
+    body.appendChild(ui.el('div', 'section-title', 'Over time'));
+    body.appendChild(overTimeCard());
+    body.appendChild(stackCard());
+
+    // ---- The climb.
+    body.appendChild(ui.el('div', 'section-title', 'The climb'));
+    body.appendChild(stepsCard());
+
+    // ---- Winning.
+    body.appendChild(ui.el('div', 'section-title', 'Winning'));
+    const win = ui.el('div', 'stat-grid');
+    win.appendChild(statCard(play.hands ? Math.round(style.winRate * 100) + '%' : '–', 'Hands won'));
+    win.appendChild(statCard(play.showdowns ? Math.round(style.showdownRate * 100) + '%' : '–', 'Showdowns won'));
+    win.appendChild(statCard(play.hands ? signed(style.perHand.toFixed(1)) : '–', 'Chips a hand'));
+    body.appendChild(win);
+    body.appendChild(ui.el('p', 'stat-hint',
+      'Hands won counts every pot you took, including the ones nobody fought for. ' +
+      'Showdowns won is only the pots that went all the way to cards being turned over. ' +
+      'Chips a hand is what an average hand is worth to you, over ' + play.hands + (play.hands === 1 ? ' hand.' : ' hands.')));
+
+    // ---- Style.
+    body.appendChild(ui.el('div', 'section-title', 'How you play'));
+    const sty = ui.el('div', 'chart-card');
+    const tiles = ui.el('div', 'stat-grid');
+    tiles.appendChild(statCard(play.hands ? Math.round(style.vpip * 100) + '%' : '–', 'Pots entered'));
+    tiles.appendChild(statCard(play.hands ? Math.round(style.pfr * 100) + '%' : '–', 'Raised first'));
+    tiles.appendChild(statCard(play.hands ? style.aggression.toFixed(1) : '–', 'Bets a call'));
+    sty.appendChild(tiles);
+    const read = styleRead(style);
+    sty.appendChild(ui.el('div', 'style-read', read.label));
+    sty.appendChild(ui.el('p', 'style-note', read.note));
+    sty.appendChild(ui.el('p', 'stat-hint',
+      'Pots entered is how often you put money in before the flop on purpose, not counting blinds. ' +
+      'Raised first is how often that was a raise rather than a call. ' +
+      'Bets a call is your bets and raises for every call: above one means you lead more than you follow.'));
+    body.appendChild(sty);
+
+    // ---- Ideas.
+    body.appendChild(ui.el('div', 'section-title', 'The five ideas'));
+    const totals = conceptTotals(state.history, inRun() ? state.run : null);
+    let anyIdea = false;
+    for (const key of Object.keys(CONCEPTS)) {
+      const got = !!state.progress.learned[key];
+      const c = totals[key];
+      if (c && c.n) anyIdea = true;
+      body.appendChild(ideaRow(CONCEPTS[key], c, got, conceptSeries(state.history, key)));
+    }
+    if (!anyIdea) {
+      body.appendChild(ui.el('p', 'empty-note',
+        'Each idea is scored on its own as you play a run. Clear a step with almost no mistakes on that step’s idea and it is marked learned for good.'));
+    }
+
+    // ---- Points.
+    body.appendChild(ui.el('div', 'section-title', 'Points'));
     const toNext = 120 - (state.progress.xp % 120);
     const bar = ui.el('div', 'level-wide');
     const fill = ui.el('div', 'level-wide-fill');
@@ -974,17 +1071,11 @@ function openStats() {
     body.appendChild(bar);
     body.appendChild(ui.el('p', 'level-note',
       state.progress.xp + ' points. ' + toNext + ' more to level ' + (level + 1) +
-      '. Points come from decisions, not from winning pots.'));
+      '. Points come from decisions, not from winning pots. Best clean streak: ' + state.progress.bestStreak + '.'));
 
-    const grid2 = ui.el('div', 'stat-grid');
-    grid2.appendChild(statCard(stats.handsPlayed, 'Hands played'));
-    grid2.appendChild(statCard(graded, 'Decisions graded'));
-    grid2.appendChild(statCard(termsSeenCount() + '/' + allTerms().length, 'Terms met'));
-    body.appendChild(grid2);
-
-    body.appendChild(ui.el('div', 'section-title', 'Breakdown'));
+    body.appendChild(ui.el('div', 'section-title', 'Every decision'));
     const breakdown = ui.el('div');
-    breakdown.appendChild(leakRow('Good decisions', stats.good || 0, 'var(--good)'));
+    breakdown.appendChild(leakRow('Good', stats.good || 0, 'var(--good)'));
     breakdown.appendChild(leakRow('Fine, playable either way', stats.fine || 0, 'var(--fine)'));
     breakdown.appendChild(leakRow('Mistakes', stats.mistake || 0, 'var(--mistake)'));
     body.appendChild(breakdown);
@@ -1002,21 +1093,6 @@ function openStats() {
       for (const row of leaks) {
         body.appendChild(leakRow(row.label, row.count + (row.count === 1 ? ' time' : ' times')));
       }
-    }
-
-    body.appendChild(ui.el('div', 'section-title', 'Ideas you have shown'));
-    const learnedBox = ui.el('div');
-    let learnedAny = false;
-    for (const key of Object.keys(CONCEPTS)) {
-      const got = !!state.progress.learned[key];
-      if (got) learnedAny = true;
-      learnedBox.appendChild(leakRow(CONCEPTS[key], got ? 'learned' : 'not yet',
-        got ? 'var(--good)' : 'var(--ink-faint)'));
-    }
-    body.appendChild(learnedBox);
-    if (!learnedAny) {
-      body.appendChild(ui.el('p', 'empty-note',
-        'Clear a step of a run with almost no mistakes on what that step is about and it is marked here for good.'));
     }
 
     body.appendChild(ui.el('div', 'section-title', 'Runs'));
@@ -1045,6 +1121,157 @@ function openStats() {
       body.appendChild(botRow(player));
     }
   });
+}
+
+function signed(text) {
+  const n = Number(text);
+  return (n > 0 ? '+' : '') + text;
+}
+
+/**
+ * The share of decisions rated good, day by day, with the direction it is
+ * moving. Days rather than runs, because the endless table has no runs and
+ * a day is the unit anybody thinks of their own practice in.
+ */
+function overTimeCard() {
+  const card = ui.el('div', 'chart-card');
+  card.appendChild(ui.el('div', 'chart-title', 'Decisions rated good'));
+  const series = daySeries(state.stats.days).filter((d) => d.decisions > 0);
+  const values = series.map((d) => d.good / d.decisions);
+  card.appendChild(ui.el('div', 'chart-sub', series.length
+    ? 'Each point is one day you played, oldest on the left. Long press a point for the number.'
+    : 'Each day you play adds a point here.'));
+  if (values.length >= 2) {
+    card.appendChild(ui.sparkline(values, {
+      min: 0, max: 1, label: 'Share of decisions rated good, by day',
+      format: (v) => Math.round(v * 100) + '% good',
+      pointLabel: (i) => 'on ' + series[i].key
+    }));
+    card.appendChild(trendRead(values, 5, 'days', (v) => Math.round(v * 100) + '%', 'points'));
+  } else {
+    card.appendChild(ui.el('p', 'chart-read', values.length === 1
+      ? 'One day on record. Come back tomorrow and there will be a line.'
+      : 'Nothing graded yet. Play a hand with the coach on.'));
+  }
+  return card;
+}
+
+/** How each run ended for your stack, run by run. */
+function stackCard() {
+  const card = ui.el('div', 'chart-card');
+  card.appendChild(ui.el('div', 'chart-title', 'Chips won or lost, each run'));
+  const runs = state.history.slice().reverse().filter((r) => typeof r.net === 'number');
+  const values = runs.map((r) => r.net);
+  card.appendChild(ui.el('div', 'chart-sub', 'Above the dotted line is a run that finished up. Oldest on the left.'));
+  if (values.length >= 2) {
+    const lim = Math.max(50, ...values.map(Math.abs));
+    card.appendChild(ui.sparkline(values, {
+      min: -lim, max: lim, label: 'Chips won or lost per run',
+      format: (v) => signed(String(Math.round(v))) + ' chips',
+      pointLabel: (i) => whenWords(runs[i].ended || runs[i].at)
+    }));
+    card.appendChild(trendRead(values, 5, 'runs', (v) => signed(String(Math.round(v))), 'chips'));
+  } else {
+    card.appendChild(ui.el('p', 'chart-read', 'Two finished runs and this fills in.'));
+  }
+  return card;
+}
+
+/** Which step each run reached, as a column per run. Complete goes higher. */
+function stepsCard() {
+  const card = ui.el('div', 'chart-card');
+  card.appendChild(ui.el('div', 'chart-title', 'How far each run got'));
+  // stepSeries turns the newest first history round itself, so it is handed
+  // the history as stored and `runs` is the same thirty turned round once for
+  // the labels. Reversing both put the newest bar on the left under the
+  // oldest label and read the trend backwards.
+  const newestFirst = state.history.slice(0, 30);
+  const runs = newestFirst.slice().reverse();
+  const steps = SECTORS.length;
+  const values = stepSeries(newestFirst, steps);
+  card.appendChild(ui.el('div', 'chart-sub', runs.length
+    ? 'One column a run, oldest on the left. A full height column is a completed run.'
+    : 'Every run you finish adds a column.'));
+  if (values.length) {
+    card.appendChild(ui.columns(values, {
+      max: steps + 1, label: 'Step reached per run',
+      classOf: (i) => (runs[i].won ? 'won' : ''),
+      format: (v, i) => (runs[i].won ? 'Completed' : 'Reached step ' + v + ' of ' + steps) + ', ' + whenWords(runs[i].ended || runs[i].at)
+    }));
+    const best = Math.max(...values);
+    const avg = values.reduce((a, b) => a + b, 0) / values.length;
+    const wins = runs.filter((r) => r.won).length;
+    const read = ui.el('p', 'chart-read');
+    read.appendChild(document.createTextNode('Best: '));
+    read.appendChild(ui.el('strong', null, best > steps ? 'completed' : 'step ' + best));
+    read.appendChild(document.createTextNode('. Typical: '));
+    read.appendChild(ui.el('strong', null, 'step ' + Math.min(steps, avg).toFixed(1)));
+    read.appendChild(document.createTextNode('. ' + wins + ' of ' + runs.length + ' completed.'));
+    const tr = trend(values, 5);
+    if (tr.enough) {
+      read.appendChild(document.createTextNode(' Last five runs reached '));
+      read.appendChild(ui.el('strong', null, tr.recent.toFixed(1)));
+      read.appendChild(document.createTextNode(' on average, the five before '));
+      read.appendChild(ui.el('strong', null, tr.earlier.toFixed(1)));
+      read.appendChild(document.createTextNode('.'));
+    }
+    card.appendChild(read);
+  } else {
+    card.appendChild(ui.el('p', 'chart-read', 'No runs finished yet.'));
+  }
+  return card;
+}
+
+/** "Last five: 72%. The five before: 60%. Up 12 points." */
+function trendRead(values, window, unit, fmt, deltaUnit) {
+  const tr = trend(values, window);
+  const read = ui.el('p', 'chart-read');
+  if (!tr.enough) {
+    read.appendChild(document.createTextNode('Latest: '));
+    read.appendChild(ui.el('strong', null, fmt(values[values.length - 1])));
+    read.appendChild(document.createTextNode('. A direction shows after about ' + (window * 2) + ' ' + unit + '.'));
+    return read;
+  }
+  read.appendChild(document.createTextNode('Last ' + window + ' ' + unit + ': '));
+  read.appendChild(ui.el('strong', null, fmt(tr.recent)));
+  read.appendChild(document.createTextNode('. The ' + window + ' before: '));
+  read.appendChild(ui.el('strong', null, fmt(tr.earlier)));
+  read.appendChild(document.createTextNode('. '));
+  const d = deltaUnit === 'points' ? Math.round(tr.delta * 100) : Math.round(tr.delta);
+  if (Math.abs(d) < 1) {
+    read.appendChild(document.createTextNode('Holding steady.'));
+  } else {
+    read.appendChild(ui.el('span', d > 0 ? 'up' : 'down',
+      (d > 0 ? 'Up ' : 'Down ') + Math.abs(d) + ' ' + deltaUnit + '.'));
+  }
+  return read;
+}
+
+/** One idea: how it has gone across every run, and whether it is learned. */
+function ideaRow(name, totals, learned, series) {
+  const n = totals ? totals.n : 0;
+  const clean = totals ? totals.n - totals.mistake : 0;
+  const rate = n ? clean / n : 0;
+  const row = ui.el('div', 'idea-row' + (learned ? ' learned' : '') + (n >= 5 && rate < 0.6 ? ' weak' : ''));
+  const top = ui.el('div', 'idea-top');
+  top.appendChild(ui.el('div', 'idea-name', name));
+  top.appendChild(ui.el('div', 'idea-score',
+    learned ? 'Learned' : (n ? Math.round(rate * 100) + '% right' : 'Not met yet')));
+  row.appendChild(top);
+  const bar = ui.el('div', 'idea-bar');
+  const fill = ui.el('div', 'idea-fill');
+  fill.style.width = Math.round(rate * 100) + '%';
+  bar.appendChild(fill);
+  row.appendChild(bar);
+  const tr = trend(series, 3);
+  let note = n ? clean + ' of ' + n + ' decisions right across your runs.' : '';
+  if (tr.enough) {
+    const d = Math.round(tr.delta * 100);
+    note += Math.abs(d) < 3 ? ' Holding steady run to run.'
+      : (d > 0 ? ' Up ' : ' Down ') + Math.abs(d) + ' points over your last three runs.';
+  }
+  if (note) row.appendChild(ui.el('div', 'idea-note', note));
+  return row;
 }
 
 function termsSeenCount() {
@@ -1228,6 +1455,8 @@ function openSettings() {
     reset.type = 'button';
     reset.addEventListener('click', () => {
       state.stats = JSON.parse(JSON.stringify(DEFAULT_STATS));
+      state.stats.play = emptyPlay();
+      state.stats.days = {};
       state.progress = JSON.parse(JSON.stringify(DEFAULT_PROGRESS));
       save();
       renderProgress();

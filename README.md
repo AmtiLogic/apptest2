@@ -26,6 +26,7 @@ js/coach.js         the rule engine that grades your decisions
 js/glossary.js      every term, its definition and an example
 js/live.js          ties a term to the hand being played right now
 js/run.js           the climb: steps, blinds, scoring, the record of runs
+js/stats.js         what a hand says about how you play, and runs about change
 js/tilt.js          turns how the phone is held into two numbers
 js/ui.js            rendering
 js/app.js           wiring, storage, screens
@@ -189,6 +190,34 @@ question about whether you bet. Tests check that every grade the coach can
 produce lands in one of those five, and that each one comes up often enough
 that a step can be scored on it.
 
+## The lesson in each step
+
+Each step is about one idea, and the step has to teach it rather than name
+it. It used to name it: one sentence on the screen before the step, gone the
+moment you picked a table, while the coach went on grading everything about
+every hand. By the debrief it was a surprise what you had been scored on, and
+the whole thing read as a run with a quiz bolted on.
+
+Three things are on screen now, and they are the same three words all the way
+through.
+
+Before the step there is the lesson: the rule in three sentences, what the
+coach counts toward the step, how the step is cleared, and a link to the term.
+"Fold most hands before the flop" is a lesson. "The soft game" is a name.
+
+During the step a line at the top of the table says which idea it is and how
+the count on it stands: "Lesson, Where you are sitting, 3 of 4 right". The
+count moves the moment a decision is graded, so you watch it build instead of
+meeting it at the end. It goes red when the step is behind the bar.
+
+On the coach's banner, a decision the step is counting is marked "Counts for
+this step". Most decisions are not, because the coach grades everything, and
+this is how you tell which ones the step is about.
+
+The step screen also says what the numbers mean: ten hands, most of the
+counted decisions right to clear it, nearly all of them right to have the
+idea marked as learned for good. Hands left is labelled as hands.
+
 ## Every run is kept
 
 Finished runs live in their own store, separate from the settings and the
@@ -211,6 +240,44 @@ The endless practice table is still there under Setup. It tops you back up,
 it has no steps and no blinds going up, and you choose the table size and the
 blind level yourself. Everything you do there counts towards your lifetime
 stats exactly as it did before.
+
+## What the stats show
+
+The progress screen answers four questions in order: am I getting better, how
+far do my runs get, do I win, and how do I play.
+
+Getting better is a line of the share of decisions rated good, one point a
+day you played, with the last five days against the five before. Days rather
+than runs, because the endless table has no runs and a day is the unit anybody
+thinks of practice in. A second line is the chips each run finished up or down.
+
+How far runs get is a column a run, height being the step reached, a full
+column a completed run, with the best, the typical and the last five against
+the five before.
+
+Winning is hands won, showdowns won and chips a hand, each explained under it.
+
+How you play is the three numbers every poker book uses. Pots entered is how
+often you put money in before the flop on purpose, not counting blinds. Raised
+first is how often that was a raise rather than a call. Bets a call is bets and
+raises for every call. Those name a style, tight or loose and passive or
+aggressive, with a sentence on what to do about it. A style is not named
+under twenty hands.
+
+Then the five ideas, each with its share right across every run, a bar of it,
+whether it is learned, and how the last three runs compare with the ones
+before.
+
+All of it is read at the end of each hand from the log the engine kept, so a
+hand skipped past counts the same as one watched. The lifetime counters live
+with the stats, a day bucket keeps the last ninety days, and every run record
+carries its own counters and its own per idea tally, so the history can be
+re-read any way later without having lost anything.
+
+The charts are inline SVG in the app's own colours: one series each, a 2px
+line, the last point marked, every point carrying its value for a long press,
+and no legend because the title names the series. Won and lost runs differ in
+colour and are also labelled, so nothing rests on colour alone.
 
 ## Points, levels and streaks
 

@@ -258,6 +258,51 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
   .opponents, .middle, .hero-cards-wrap { transform: none; }
 }
 
+/* The lesson chip. One line at the top of the table for the whole step:
+   what the step is about and how the count on it stands. It is the answer to
+   "what am I meant to be doing here", which used to be stated once on the
+   step screen and never again. */
+.lesson-chip {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  font-size: 12px;
+  line-height: 1.2;
+  min-width: 0;
+}
+.lesson-chip[hidden] { display: none; }
+.lesson-chip-label {
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.lesson-chip-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--ink);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lesson-chip-tally {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--good);
+  font-weight: 700;
+}
+.lesson-chip-tally.dim { color: var(--ink-faint); font-weight: 500; }
+.lesson-chip.behind .lesson-chip-tally { color: var(--mistake); }
+
 /* ------------------------------------------------------------- opponents */
 
 .opponents {
@@ -703,6 +748,23 @@ body.many-seats .coach-banner { max-height: 26vh; }
   mask-image: linear-gradient(180deg, #000 0 calc(100% - 26px), transparent 100%);
 }
 
+.coach-head { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-bottom: 7px; }
+.coach-head .coach-verdict { margin-bottom: 0; }
+/* The mark that a decision is one the step is counting. Same shape as the
+   verdict so the two read as a pair, in the accent so it is never mistaken
+   for a fourth grade. */
+.coach-lesson-tag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: var(--accent);
+  border: 1px solid rgba(61, 220, 151, 0.4);
+}
+
 .coach-banner.good .coach-verdict { color: var(--good); background: rgba(61, 220, 151, 0.13); }
 .coach-banner.fine .coach-verdict { color: var(--fine); background: rgba(240, 192, 90, 0.13); }
 .coach-banner.mistake .coach-verdict { color: var(--mistake); background: rgba(255, 111, 97, 0.13); }
@@ -863,6 +925,7 @@ body.can-fold .hero-zone { padding-top: 30px; }
    button is the whole point of the panel being open. */
 body.sizing .coach-banner { max-height: 18vh; }
 body.sizing .table-message { display: none; }
+body.sizing .lesson-chip { display: none; }
 body.sizing .middle { margin-top: 0; margin-bottom: 0; }
 
 .sizer-top {
@@ -1635,6 +1698,56 @@ body.folding .hero-readout { opacity: 0.4; transition: opacity 0.16s ease; }
 
 .empty-note { font-size: 14px; color: var(--ink-dim); margin: 0; }
 
+/* ---------------------------------------------------------------- charts */
+
+/* A chart sits in the same card as a stat, with its title above and the read
+   of it below. The line is the accent; every number around it is ink. */
+.chart-card {
+  padding: 13px 14px 12px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  margin-bottom: 8px;
+}
+.chart-title { font-size: 13px; font-weight: 600; color: var(--ink); }
+.chart-sub { margin-top: 2px; font-size: 11px; color: var(--ink-faint); }
+.chart-read { margin-top: 8px; font-size: 13px; color: var(--ink-dim); line-height: 1.45; }
+.chart-read strong { color: var(--ink); font-weight: 600; }
+.chart-read .up { color: var(--good); font-weight: 700; }
+.chart-read .down { color: var(--mistake); font-weight: 700; }
+
+.spark, .cols { display: block; width: 100%; height: 56px; margin-top: 8px; overflow: visible; }
+.spark-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.spark-dot { fill: var(--surface); stroke: var(--accent); stroke-width: 1.5; }
+.spark-dot.last { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
+.spark-zero { stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 3; }
+.cols .col { fill: var(--ink-faint); opacity: 0.55; }
+.cols .col.won { fill: var(--accent); opacity: 1; }
+.cols .col.now { fill: var(--ink-dim); opacity: 1; }
+
+/* A style is two tiles and a sentence. */
+.style-read { margin-top: 10px; font-size: 14px; font-weight: 600; color: var(--ink); }
+.style-note { margin: 4px 0 0; font-size: 13px; color: var(--ink-dim); line-height: 1.45; }
+.stat-hint { margin: 6px 0 0; font-size: 11px; color: var(--ink-faint); line-height: 1.4; }
+
+/* One idea: its name, how it has gone, and a bar of it. */
+.idea-row {
+  padding: 11px 14px 12px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  margin-bottom: 8px;
+}
+.idea-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.idea-name { font-size: 14px; min-width: 0; }
+.idea-score { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink-dim); }
+.idea-row.learned .idea-score { color: var(--good); }
+.idea-bar { margin-top: 8px; height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.idea-fill { height: 100%; border-radius: 3px; background: var(--accent); }
+.idea-row.weak .idea-fill { background: var(--mistake); }
+.idea-note { margin-top: 6px; font-size: 11px; color: var(--ink-faint); }
+
+
 .setting-row {
   padding: 14px;
   border-radius: var(--radius);
@@ -1714,6 +1827,36 @@ body.folding .hero-readout { opacity: 0.4; transition: opacity 0.16s ease; }
   color: var(--accent);
 }
 .step-brief { margin: 9px 0 0; font-size: 14px; color: var(--ink-dim); line-height: 1.45; }
+
+/* The lesson itself: the rule, what the coach counts, and how the step is
+   cleared. Set apart from the flavour above it, because this is the part that
+   was missing and the part to read. */
+.lesson-card {
+  margin-top: 14px;
+  padding: 13px 14px 14px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  border: 1px solid rgba(61, 220, 151, 0.28);
+}
+.lesson-kicker {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.lesson-title { margin-top: 3px; font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+.lesson-rule { margin: 9px 0 0; font-size: 14px; color: var(--ink); line-height: 1.5; }
+.lesson-watch { margin: 10px 0 0; font-size: 13px; color: var(--ink-dim); line-height: 1.45; }
+.lesson-watch strong { color: var(--ink); font-weight: 600; }
+.lesson-how {
+  margin: 10px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 12.5px;
+  color: var(--ink-dim);
+  line-height: 1.45;
+}
 .step-warn { margin: 9px 0 0; font-size: 13px; color: var(--mistake); line-height: 1.45; }
 
 .step-facts { display: flex; gap: 8px; margin-top: 14px; }
@@ -1908,6 +2051,7 @@ body.folding .hero-readout { opacity: 0.4; transition: opacity 0.16s ease; }
   .run-line { margin-top: 2px; font-size: 9px; gap: 6px; }
   .hero-zone { padding: var(--v-block) 0 9px; }
   .action-area { margin-top: 10px; }
+  .lesson-chip { margin: 4px 0 0; padding: 3px 9px; font-size: 11px; }
   /* The hint keeps 6px clear on each side here instead of 8. */
   body.can-fold .hero-zone { padding-top: 24px; }
   .fold-hint { top: -18px; }

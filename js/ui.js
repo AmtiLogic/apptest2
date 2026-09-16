@@ -13,7 +13,8 @@ export function cacheDom() {
     'table-message', 'hand-result', 'coach-banner', 'action-area', 'hero-cards',
     'hero-stack', 'hero-readout', 'sheet', 'sheet-title', 'sheet-body',
     'screen', 'screen-title', 'screen-body',
-    'level-label', 'streak-label', 'level-fill', 'fold-hint', 'run-line'
+    'level-label', 'streak-label', 'level-fill', 'fold-hint', 'run-line',
+    'lesson-chip'
   ];
   for (const id of ids) {
     dom[camel(id)] = document.getElementById(id);
@@ -701,6 +702,7 @@ export function setRunHud(run) {
     node.hidden = true;
     clear(node);
     dom.handNumber.parentNode.classList.remove('run');
+    setLessonChip(null);
     return;
   }
   clear(node);
@@ -710,11 +712,43 @@ export function setRunHud(run) {
       (i < run.step - 1 ? ' done' : (i === run.step - 1 ? ' now' : ''))));
   }
   node.appendChild(pips);
-  node.appendChild(el('span', 'run-left', run.handsLeft + ' left'));
+  node.appendChild(el('span', 'run-left', run.handsLeft + (run.handsLeft === 1 ? ' hand left' : ' hands left')));
   const bb = el('span', 'run-bb' + (run.blindsLeft <= 10 ? ' low' : ''), run.blindsLeft + ' BB');
   node.appendChild(bb);
   node.hidden = false;
   dom.handNumber.parentNode.classList.add('run');
+  setLessonChip(run);
+}
+
+/**
+ * The step's idea, on screen the whole time you are playing it, with the
+ * count building next to it. The idea used to be stated once on the screen
+ * before the step and never again, so by the debrief it was a surprise what
+ * you were being scored on. Nothing else here is as important as this line.
+ */
+function setLessonChip(run) {
+  const chip = dom.lessonChip;
+  if (!chip) return;
+  if (!run) { chip.hidden = true; clear(chip); return; }
+  clear(chip);
+  chip.hidden = false;
+  chip.classList.toggle('behind', !run.tally.onTrack);
+  const label = el('span', 'lesson-chip-label', 'Lesson');
+  const name = el('span', 'lesson-chip-name', run.focus);
+  chip.appendChild(label);
+  chip.appendChild(name);
+  const tally = el('span', 'lesson-chip-tally');
+  if (run.tally.n === 0) {
+    tally.textContent = 'none yet';
+    tally.classList.add('dim');
+  } else {
+    tally.textContent = run.tally.clean + ' of ' + run.tally.n + ' right';
+  }
+  chip.appendChild(tally);
+}
+
+export function hideLessonChip() {
+  setLessonChip(null);
 }
 
 /**
@@ -744,8 +778,27 @@ export function showTableChoice(data, onPick) {
 function stepHeader(data) {
   const wrap = el('div', 'step-head');
   wrap.appendChild(el('div', 'step-name', data.name));
-  wrap.appendChild(el('div', 'step-focus', 'This step is about: ' + data.focusName));
   wrap.appendChild(el('p', 'step-brief', data.brief));
+
+  if (data.lesson) {
+    const card = el('div', 'lesson-card');
+    card.appendChild(el('div', 'lesson-kicker', 'The lesson'));
+    card.appendChild(el('div', 'lesson-title', data.focusName));
+    card.appendChild(el('p', 'lesson-rule', data.lesson.rule));
+    const watch = el('p', 'lesson-watch');
+    watch.appendChild(el('strong', null, 'What the coach counts: '));
+    watch.appendChild(document.createTextNode(data.lesson.watch));
+    card.appendChild(watch);
+    const how = el('p', 'lesson-how');
+    how.appendChild(document.createTextNode(
+      'Ten hands. The coach grades every decision as always, but only the ones about ' +
+      lower(data.focusName) + ' count toward this step. Get most of those right to clear it. ' +
+      'Get nearly all of them right and it is marked as learned, for good. '));
+    how.appendChild(renderMarkup('Read more on [[' + data.lesson.term + '|' + data.lesson.termName + ']].'));
+    card.appendChild(how);
+    wrap.appendChild(card);
+  }
+
   const facts = el('div', 'step-facts');
   facts.appendChild(fact(data.stack, 'Your stack'));
   facts.appendChild(fact(data.bigBlind, 'Big blind'));
@@ -777,7 +830,8 @@ export function showStepDebrief(data, onContinue) {
     } else {
       const clean = data.decisions - data.mistakes;
       head.appendChild(el('p', 'debrief-line',
-        clean + ' of ' + data.decisions + ' right on ' + lower(data.focusName) + '.'));
+        clean + ' of ' + data.decisions + ' right on ' + lower(data.focusName) + '.' +
+        (data.cleared ? ' That is enough to clear the step.' : '')));
       if (data.mastered && !data.alreadyLearned) {
         head.appendChild(el('div', 'debrief-badge', 'Learned: ' + data.focusName));
       } else if (data.mastered) {
@@ -908,7 +962,13 @@ export function showBanner(result) {
   node.className = 'coach-banner ' + result.verdict;
   node.hidden = false;
   const label = result.verdict === 'good' ? 'Good' : result.verdict === 'fine' ? 'Fine' : 'Mistake';
-  node.appendChild(el('div', 'coach-verdict', label));
+  const head = el('div', 'coach-head');
+  head.appendChild(el('div', 'coach-verdict', label));
+  // Most decisions are about something other than what the step is teaching,
+  // and the coach grades them all. This is how you tell which ones the step
+  // is counting: the ones with this on them.
+  if (result.onLesson) head.appendChild(el('div', 'coach-lesson-tag', 'Counts for this step'));
+  node.appendChild(head);
   const text = el('div', 'coach-text');
   text.appendChild(renderMarkup(result.text));
   node.appendChild(text);
@@ -1121,6 +1181,86 @@ export function renderNextHand(onNext) {
   btn.type = 'button';
   btn.addEventListener('click', onNext);
   dom.actionArea.appendChild(btn);
+}
+
+// ----------------------------------------------------------------- charts
+
+const SVG = 'http://www.w3.org/2000/svg';
+
+function svgEl(name, attrs) {
+  const node = document.createElementNS(SVG, name);
+  for (const key of Object.keys(attrs || {})) node.setAttribute(key, String(attrs[key]));
+  return node;
+}
+
+/**
+ * A line of values over time, drawn small. One series, so no legend: the
+ * title above it says what it is. A 2px line, the last point marked and
+ * labelled, a faint baseline, and nothing else. Values are 0 to 1 unless
+ * `max` says otherwise. Every point carries its value for a long press.
+ */
+export function sparkline(values, options) {
+  const opts = options || {};
+  const w = opts.width || 300;
+  const h = opts.height || 56;
+  const pad = 6;
+  const svg = svgEl('svg', { class: 'spark', viewBox: '0 0 ' + w + ' ' + h, preserveAspectRatio: 'none', role: 'img' });
+  if (opts.label) {
+    const t = svgEl('title'); t.textContent = opts.label; svg.appendChild(t);
+  }
+  const vals = (values || []).filter((v) => typeof v === 'number');
+  if (vals.length < 2) return svg;
+  const max = typeof opts.max === 'number' ? opts.max : Math.max(1, ...vals);
+  const min = typeof opts.min === 'number' ? opts.min : Math.min(0, ...vals);
+  const span = max - min || 1;
+  const x = (i) => pad + (i / (vals.length - 1)) * (w - pad * 2);
+  const y = (v) => h - pad - ((v - min) / span) * (h - pad * 2);
+  // A baseline at zero when zero is inside the range, so a line that dips
+  // below it reads as a loss rather than as a lower level.
+  if (min < 0 && max > 0) {
+    svg.appendChild(svgEl('line', { class: 'spark-zero', x1: pad, x2: w - pad, y1: y(0), y2: y(0) }));
+  }
+  const d = vals.map((v, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1)).join(' ');
+  svg.appendChild(svgEl('path', { class: 'spark-line', d, 'vector-effect': 'non-scaling-stroke' }));
+  for (let i = 0; i < vals.length; i++) {
+    const dot = svgEl('circle', { class: 'spark-dot' + (i === vals.length - 1 ? ' last' : ''), cx: x(i).toFixed(1), cy: y(vals[i]).toFixed(1), r: i === vals.length - 1 ? 4 : 2.2 });
+    const t = svgEl('title'); t.textContent = (opts.format ? opts.format(vals[i]) : vals[i]) + (opts.pointLabel ? ' ' + opts.pointLabel(i) : '');
+    dot.appendChild(t);
+    svg.appendChild(dot);
+  }
+  return svg;
+}
+
+/**
+ * One column per value, for a count of something per run. Columns keep a 2px
+ * gap and a rounded top. `classOf(i)` names a state for the column so a won
+ * run and a lost one can look different, always alongside a label, never by
+ * colour alone.
+ */
+export function columns(values, options) {
+  const opts = options || {};
+  const w = opts.width || 300;
+  const h = opts.height || 56;
+  const pad = 2;
+  const svg = svgEl('svg', { class: 'cols', viewBox: '0 0 ' + w + ' ' + h, preserveAspectRatio: 'none', role: 'img' });
+  if (opts.label) { const t = svgEl('title'); t.textContent = opts.label; svg.appendChild(t); }
+  const vals = values || [];
+  if (!vals.length) return svg;
+  const max = typeof opts.max === 'number' ? opts.max : Math.max(1, ...vals);
+  const gap = 2;
+  const cw = (w - pad * 2 - gap * (vals.length - 1)) / vals.length;
+  for (let i = 0; i < vals.length; i++) {
+    const v = Math.max(0, vals[i]);
+    const ch = Math.max(2, (v / max) * (h - pad * 2));
+    const rect = svgEl('rect', {
+      class: 'col' + (opts.classOf ? ' ' + opts.classOf(i, v) : ''),
+      x: (pad + i * (cw + gap)).toFixed(2), y: (h - pad - ch).toFixed(2),
+      width: Math.max(1, cw).toFixed(2), height: ch.toFixed(2), rx: Math.min(3, cw / 2)
+    });
+    const t = svgEl('title'); t.textContent = (opts.format ? opts.format(v, i) : v); rect.appendChild(t);
+    svg.appendChild(rect);
+  }
+  return svg;
 }
 
 // --------------------------------------------------------------- diagrams
