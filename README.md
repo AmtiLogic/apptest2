@@ -337,6 +337,30 @@ not a skip. It is offered when you have folded and when you are all in, which
 are the two states with no decision of yours left in them, so it can never skip
 past something you were meant to answer.
 
+## Seeing what you folded to
+
+At a showdown everyone still in turns their cards over and you see them. Fold,
+though, and the hand plays on without you: whoever takes the pot never has to
+show, so you never find out what you folded to. That is correct poker and
+useless practice, so the app shows you anyway.
+
+When a pot is taken without a showdown and you had folded, the player who took
+it has their cards turned face up at their seat, and the result line names the
+hand in words, because two cards at a seat are twelve pixels wide. "You folded,
+Bo had a pair of queens."
+
+It is only ever after the hand is settled. During play the same cards stay face
+down, which is what `handOver` guards, and a player who folded is never shown
+at all: their hand is mucked and it is noise. The rule is one line, "still
+holding cards and not folded", the same test a showdown uses, so there is no
+second path that could get it wrong.
+
+The thing to watch out for is reading the result rather than the decision. Fold
+the right hand into a pair of queens and the fold was still right; the coach
+grades the decision and says so on that same screen, which is the answer to
+knowing what they had. Setup has a Their cards setting for anyone who would
+rather not know.
+
 Going straight on does not skip the shape of a run. The end of a step and the
 end of a run still stop and show themselves, because skipping hands the game to
 the same function the button would have called rather than dealing a hand

@@ -2,7 +2,7 @@
 // Wires the engine, the bots, the coach and the interface together, and
 // keeps progress in localStorage.
 
-import { makeRng } from './cards.js';
+import { makeRng, handWords } from './cards.js';
 import {
   createTable, startHand, legalActions, applyAction, positionName
 } from './engine.js';
@@ -31,7 +31,7 @@ const HERO_SEAT = 0;
 const BOT_DELAY = 620;
 const REVEAL_UNLOCK = 20;
 
-const DEFAULT_SETTINGS = { tableSize: 6, coach: true, bigBlind: 2, mode: 'run', tilt: true };
+const DEFAULT_SETTINGS = { tableSize: 6, coach: true, bigBlind: 2, mode: 'run', tilt: true, peek: true };
 
 // Points reward playing well, never winning chips. A bad call that wins the
 // pot is still a bad call, and a good fold that would have won is still a
@@ -756,6 +756,14 @@ function buildResult(t, results) {
     detail.push('everyone else folded');
   } else {
     detail.push(hero().folded ? 'you folded' : 'no showdown');
+    // Without a showdown there is exactly one player still holding cards, so
+    // this never has to pick between several.
+    if (peeking()) {
+      const still = t.players.find((p) => p.hasCards && !p.folded && !p.isHuman);
+      if (still && still.hole.length === 2) {
+        detail.push(still.name + ' had ' + handWords(still.hole));
+      }
+    }
   }
 
   return { headline, net, detail: detail.join(', ') + '.' };
@@ -883,6 +891,17 @@ function showSizer(legal) {
   });
 }
 
+/**
+ * True when the app is showing you a hand nobody had to show: you folded, the
+ * pot was taken without a showdown, and the setting allows it.
+ */
+function peeking() {
+  const t = state.table;
+  if (!t || !t.handOver || !t.results || t.results.showdown) return false;
+  if (state.settings.peek === false) return false;
+  return !!t.players[HERO_SEAT].folded;
+}
+
 // ------------------------------------------------------------------ render
 
 function render() {
@@ -891,8 +910,14 @@ function render() {
   const reveal = [];
   const winners = t.handOver && t.results ? t.results.winners : [];
   const nets = t.handOver && t.results ? t.results.net : null;
-  if (t.handOver && t.results && t.results.showdown) {
-    for (const p of t.players) if (p.hasCards && !p.folded) reveal.push(p.index);
+  if (t.handOver && t.results) {
+    // At a showdown they turned their cards over and everyone sees them.
+    // After you fold, the hand plays on without you and whoever takes it
+    // never has to show, so you never find out what you folded to. That is
+    // correct poker and useless practice, so the app shows you anyway.
+    if (t.results.showdown || peeking()) {
+      for (const p of t.players) if (p.hasCards && !p.folded) reveal.push(p.index);
+    }
   }
 
   ui.setHandNumber(t.handNumber);
@@ -1377,6 +1402,19 @@ function openSettings() {
         save();
         ui.setCoachState(value);
         if (!value) ui.hideBanner();
+        openSettings();
+      }
+    ));
+
+    body.appendChild(choiceSetting(
+      'Their cards',
+      'After you fold, show what the player who took the pot was holding. A real table never shows you this, and knowing is how you find out what you were folding to.',
+      [{ label: 'Show', value: true }, { label: 'Hide', value: false }],
+      state.settings.peek !== false,
+      (value) => {
+        state.settings.peek = value;
+        save();
+        render();
         openSettings();
       }
     ));

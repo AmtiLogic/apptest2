@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import {
   parseCards, evaluate, compareHands, describeHand, newDeck, shuffle,
-  makeRng, CATEGORY, handCode, RANK_CHARS, RANK_FACES
+  makeRng, CATEGORY, handCode, RANK_CHARS, RANK_FACES, handWords
 } from '../js/cards.js';
 import {
   createTable, startHand, legalActions, applyAction, buildPots,
@@ -1698,6 +1698,41 @@ test('the loop settles, so a still phone is not animating forever', () => {
 test('a tilt small enough to be a hand shake is treated as already settled', () => {
   assert.ok(settled({ x: 0, y: 0 }, { x: EPSILON / 2, y: -EPSILON / 2 }));
   assert.ok(!settled({ x: 0, y: 0 }, { x: EPSILON * 4, y: 0 }));
+});
+
+// --- showing a hand nobody had to show --------------------------------------
+
+test('a pot won without a showdown leaves the winner holding readable cards', () => {
+  // Everyone folds to one player. There is no showdown, so nobody turned
+  // anything over, and the app still wants to show you what you folded to.
+  // That only works while the engine leaves the hole cards alone at settle.
+  const t = table(4, 11);
+  startHand(t);
+  let guard = 0;
+  while (!t.handOver && t.toAct >= 0 && guard++ < 60) {
+    applyAction(t, { type: 'fold' });
+  }
+  assert.equal(t.handOver, true);
+  assert.equal(t.results.showdown, false, 'one player left is not a showdown');
+  const left = t.players.filter((p) => p.hasCards && !p.folded);
+  assert.equal(left.length, 1, 'exactly one player still holds cards');
+  assert.equal(left[0].hole.length, 2, 'and the cards are still there to show');
+  for (const card of left[0].hole) {
+    assert.ok(card && typeof card.rank === 'number', 'a real card, not a blank');
+  }
+  assert.ok(handWords(left[0].hole).length > 0, 'and it can be named in words');
+});
+
+test('folders keep the folded flag, so a peek never shows a mucked hand', () => {
+  const t = table(4, 3);
+  startHand(t);
+  const first = t.toAct;
+  applyAction(t, { type: 'fold' });
+  assert.equal(t.players[first].folded, true);
+  // The reveal rule is "still holding cards and not folded", so a folded
+  // player is excluded by the same test at every seat, hero or bot.
+  const shown = t.players.filter((p) => p.hasCards && !p.folded).map((p) => p.index);
+  assert.ok(!shown.includes(first), 'a player who folded is never in the shown set');
 });
 
 // --- stats -----------------------------------------------------------------
