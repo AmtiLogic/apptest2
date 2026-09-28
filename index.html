@@ -27,6 +27,9 @@
       </div>
       <div class="level-track"><div id="level-fill" class="level-fill"></div></div>
       <div id="run-line" class="run-line" hidden></div>
+      <!-- The free table's running total. Its own element rather than sharing
+           the run line, so neither can blank the other by drawing second. -->
+      <div id="bankroll-line" class="bankroll-line" hidden></div>
     </div>
     <nav class="topbar-nav">
       <button type="button" class="nav-btn" data-screen="glossary" aria-label="Glossary">Terms</button>

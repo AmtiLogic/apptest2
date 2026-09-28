@@ -14,7 +14,7 @@ export function cacheDom() {
     'hero-stack', 'hero-readout', 'sheet', 'sheet-title', 'sheet-body',
     'screen', 'screen-title', 'screen-body',
     'level-label', 'streak-label', 'level-fill', 'fold-hint', 'run-line',
-    'lesson-chip'
+    'lesson-chip', 'bankroll-line'
   ];
   for (const id of ids) {
     dom[camel(id)] = document.getElementById(id);
@@ -749,6 +749,28 @@ function setLessonChip(run) {
 
 export function hideLessonChip() {
   setLessonChip(null);
+}
+
+/**
+ * What the free table has cost you or made you, and how many times it has
+ * taken the lot. Always on screen while you are playing it, because a running
+ * total nobody can see is the same as no running total.
+ */
+export function setBankroll(info) {
+  const node = dom.bankrollLine;
+  if (!node) return;
+  if (!info) { node.hidden = true; clear(node); return; }
+  clear(node);
+  node.hidden = false;
+  const net = info.net || 0;
+  const word = net < 0 ? 'Down ' : net > 0 ? 'Up ' : '';
+  const amount = el('span', 'bankroll-net' + (net < 0 ? ' down' : net > 0 ? ' up' : ''),
+    net === 0 ? 'Even' : word + Math.abs(net));
+  node.appendChild(amount);
+  if (info.busts > 0) {
+    node.appendChild(el('span', 'bankroll-busts',
+      info.busts === 1 ? 'broke once' : 'broke ' + info.busts + ' times'));
+  }
 }
 
 /**

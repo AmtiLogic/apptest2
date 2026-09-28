@@ -1700,6 +1700,33 @@ test('a tilt small enough to be a hand shake is treated as already settled', () 
   assert.ok(!settled({ x: 0, y: 0 }, { x: EPSILON * 4, y: 0 }));
 });
 
+// --- going broke -----------------------------------------------------------
+
+test('a seat that has opted out of rebuys stays broke', () => {
+  // The free table's bankroll rests on this: the engine tops nobody up who
+  // said not to, so busting is a fact the app can count rather than something
+  // the next deal quietly undoes.
+  const t = table(3, 5);
+  t.players[0].rebuy = false;
+  startHand(t);
+  t.players[0].stack = 0;
+  startHand(t);
+  assert.equal(t.players[0].stack, 0, 'still broke on the next deal');
+  startHand(t);
+  assert.equal(t.players[0].stack, 0, 'and the one after that');
+});
+
+test('every other seat is still topped back up, so the table never empties', () => {
+  const t = table(3, 5);
+  t.players[0].rebuy = false;
+  startHand(t);
+  t.players[0].stack = 0;
+  t.players[1].stack = 0;
+  startHand(t);
+  assert.equal(t.players[0].stack, 0);
+  assert.equal(t.players[1].stack, t.startingStack, 'a bot sits back down');
+});
+
 // --- showing a hand nobody had to show --------------------------------------
 
 test('a pot won without a showdown leaves the winner holding readable cards', () => {

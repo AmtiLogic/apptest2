@@ -67,7 +67,20 @@ const DEFAULT_STATS = {
   days: {}
 };
 
+/**
+ * The free table is one long session rather than a series of fresh starts.
+ * Your chips carry across hands, across a change of seats or blinds, and
+ * across closing the app. Going broke does not undo itself: it buys you back
+ * in and adds one to a count that never goes down.
+ *
+ * `chips` is null only before you have ever sat down. `net` is this table's
+ * running total and is kept apart from a run's, because a run is its own
+ * buy-in with its own result.
+ */
+const DEFAULT_BANKROLL = { chips: null, busts: 0, buyIns: 0, net: 0 };
+
 const state = {
+  bankroll: Object.assign({}, DEFAULT_BANKROLL),
   settings: Object.assign({}, DEFAULT_SETTINGS),
   stats: Object.assign({}, DEFAULT_STATS, { play: emptyPlay(), days: {} }),
   progress: JSON.parse(JSON.stringify(DEFAULT_PROGRESS)),
@@ -87,6 +100,7 @@ function load() {
     if (!raw) return;
     const saved = JSON.parse(raw);
     if (saved && saved.settings) Object.assign(state.settings, saved.settings);
+    if (saved && saved.bankroll) Object.assign(state.bankroll, DEFAULT_BANKROLL, saved.bankroll);
     if (saved && saved.stats) {
       Object.assign(state.stats, DEFAULT_STATS, saved.stats);
       state.stats.leaks = Object.assign({}, saved.stats.leaks || {});
@@ -130,6 +144,7 @@ function save() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       settings: state.settings,
+      bankroll: state.bankroll,
       stats: state.stats,
       progress: state.progress
     }));
@@ -256,7 +271,34 @@ function buildTable() {
     bigBlind,
     rng: makeRng((Date.now() ^ 0x5f3759df) >>> 0)
   });
+  // Your seat is never topped back up by the engine. Going broke is a thing
+  // that happened and the app counts it, rather than something the table
+  // quietly undoes between hands. This is the app's policy about your
+  // bankroll, so it is set here and not baked into the seat builder, which
+  // other callers and the tests use for ordinary tables.
+  state.table.players[HERO_SEAT].rebuy = false;
+  // Moving to a different number of seats, or different blinds, builds a new
+  // table. You sit down at it with the chips you got up with. A hundred big
+  // blinds is what you start with, not what you are handed every time the
+  // table changes.
+  if (state.bankroll.chips === null) {
+    state.bankroll.chips = state.table.startingStack;
+    state.bankroll.buyIns = 1;
+    save();
+  }
+  state.table.players[HERO_SEAT].stack = state.bankroll.chips;
   ui.resetBoardAnimation();
+}
+
+/** Sit down again after losing the lot, and count it. */
+function rebuyIfBroke() {
+  const me = state.table.players[HERO_SEAT];
+  if (me.stack > 0) return;
+  me.stack = state.table.startingStack;
+  state.bankroll.chips = me.stack;
+  state.bankroll.busts += 1;
+  state.bankroll.buyIns += 1;
+  save();
 }
 
 /**
@@ -301,6 +343,9 @@ function dealNewHand() {
   ui.hideBanner();
   ui.hideResult();
   ui.resetBoardAnimation();
+  // A run has no rebuy: busting is the end of it. Only the free table sells
+  // you another stack.
+  if (!inRun()) { rebuyIfBroke(); renderRunHud(); }
   startHand(state.table);
   state.stats.handsPlayed += 1;
   for (const p of state.table.players) {
@@ -511,6 +556,9 @@ function renderProgress() {
 function finishHand(straightOn) {
   const t = state.table;
   recordHandStats(t);
+  // The free table's running total just moved, so the line showing it has to
+  // move with it. A run refreshes again below once its own counters are in.
+  renderRunHud();
   render();
   if (t.results && !straightOn) {
     ui.setMessage('');
@@ -548,6 +596,11 @@ function recordHandStats(t) {
   if (inRun()) {
     if (!state.run.play) state.run.play = emptyPlay();
     addHand(state.run.play, hand);
+  } else {
+    // The free table's own running total, and the chips you are left sitting
+    // behind, which is what a new table hands back to you.
+    state.bankroll.net += hand.net;
+    state.bankroll.chips = Math.max(0, Math.round(t.players[HERO_SEAT].stack));
   }
 }
 
@@ -560,8 +613,13 @@ function inRun() {
 function renderRunHud() {
   if (!inRun()) {
     ui.setRunHud(null);
+    ui.setBankroll({
+      net: Math.round(state.bankroll.net),
+      busts: state.bankroll.busts
+    });
     return;
   }
+  ui.setBankroll(null);
   const run = state.run;
   const sector = sectorOf(run);
   ui.setRunHud({
@@ -1054,6 +1112,19 @@ function openStats() {
       'Showdowns won is only the pots that went all the way to cards being turned over. ' +
       'Chips a hand is what an average hand is worth to you, over ' + play.hands + (play.hands === 1 ? ' hand.' : ' hands.')));
 
+    // ---- The free table's bankroll.
+    body.appendChild(ui.el('div', 'section-title', 'The free table'));
+    const bank = state.bankroll;
+    const bankGrid = ui.el('div', 'stat-grid');
+    bankGrid.appendChild(statCard(signed(String(Math.round(bank.net))), 'Chips, all in all'));
+    bankGrid.appendChild(statCard(bank.buyIns || 0, 'Times bought in'));
+    bankGrid.appendChild(statCard(bank.busts || 0, 'Times broke'));
+    body.appendChild(bankGrid);
+    body.appendChild(ui.el('p', 'stat-hint',
+      bank.busts
+        ? 'The free table is one long session. Your chips carry from hand to hand and across a change of seats or blinds, and they are never quietly restored. Losing the lot buys you back in and adds one to that count, which is the only number here that cannot go down.'
+        : 'The free table is one long session. Your chips carry from hand to hand and across a change of seats or blinds, and they are never quietly restored. Lose the lot and it buys you back in and counts it. A run is kept separate: it is its own buy-in with its own result.'));
+
     // ---- Style.
     body.appendChild(ui.el('div', 'section-title', 'How you play'));
     const sty = ui.el('div', 'chart-card');
@@ -1364,7 +1435,7 @@ function openSettings() {
   ui.openScreen('Setup', (body) => {
     body.appendChild(choiceSetting(
       'How you play',
-      'A run climbs five tables with the blinds going up at every step and your stack carried the whole way. Bust and it is over. Free play is one endless table that tops you back up.',
+      'A run climbs five tables with the blinds going up at every step and your stack carried the whole way. Bust and it is over. Free play is one endless table where your chips carry on forever and going broke is counted rather than undone.',
       [{ label: 'Run', value: 'run' }, { label: 'Free play', value: 'free' }],
       state.settings.mode,
       (value) => {
@@ -1455,7 +1526,7 @@ function openSettings() {
 
       body.appendChild(choiceSetting(
         'Blinds',
-        'Your stack is always one hundred big blinds, so the game plays the same at every level.',
+        'A hundred big blinds is what you sit down with the first time. After that you keep whatever you have, at whatever blinds you pick.',
         [
           { label: '1 and 2', value: 2 },
           { label: '2 and 5', value: 5 },
@@ -1495,6 +1566,7 @@ function openSettings() {
       state.stats = JSON.parse(JSON.stringify(DEFAULT_STATS));
       state.stats.play = emptyPlay();
       state.stats.days = {};
+      state.bankroll = Object.assign({}, DEFAULT_BANKROLL);
       state.progress = JSON.parse(JSON.stringify(DEFAULT_PROGRESS));
       save();
       renderProgress();

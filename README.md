@@ -236,7 +236,7 @@ the same step with the same stack at the same table.
 
 ## Free play
 
-The endless practice table is still there under Setup. It tops you back up,
+The endless practice table is still there under Setup. It counts what it costs you,
 it has no steps and no blinds going up, and you choose the table size and the
 blind level yourself. Everything you do there counts towards your lifetime
 stats exactly as it did before.
@@ -336,6 +336,40 @@ waiting to read, and a press that needs a second press to finish the thought is
 not a skip. It is offered when you have folded and when you are all in, which
 are the two states with no decision of yours left in them, so it can never skip
 past something you were meant to answer.
+
+## The free table is one long session
+
+It used to reset you without saying so. Run out of chips and the next deal
+quietly handed you a fresh hundred big blinds; change the seats or the blinds
+and you got another; the number you were down was never anywhere on screen. A
+table you cannot lose at asks nothing of you, which is the same reason the run
+exists.
+
+Now your chips carry: hand to hand, across a change of seats or blinds, and
+across closing the app. Nothing tops you up. Lose the lot and it buys you back
+in for another hundred big blinds and adds one to a count that never goes
+down, and the top bar carries the running total the whole time: `Down 597`,
+`broke 3 times`.
+
+Three resets had to go, not one. The engine tops up anyone sitting at zero, so
+your seat opts out of that; building a table handed out a fresh stack, so it
+now seats you with what you got up with; and changing a setting threw the
+table away entirely, so the chips live in the stored bankroll rather than in
+the table that gets rebuilt. The opt-out is set by the app on its own seat
+rather than baked into the seat builder, because the builder is also what
+ordinary tables and the tests use, and two fuzz tests caught exactly that when
+it was in the wrong place: the hero busted and sat out, and they graded a
+third of the decisions they should have.
+
+The count is kept apart from a run's. A run is its own buy-in with its own
+result and its own record; this is the money on the free table. Both agree
+with themselves: four buy-ins of two hundred with two hundred and three left
+in front of you reads as down five hundred and ninety seven, whether you get
+there by adding up every hand or by subtracting what you are holding from what
+you put in.
+
+Bots still get topped back up, so the table never empties. They are the
+scenery, not the point.
 
 ## Seeing what you folded to
 
@@ -681,12 +715,12 @@ you have played twenty hands against them.
 ## Settings
 
 Table size of six, nine or heads up. Coach on or off. Blinds of 1 and 2, 2 and
-5, or 5 and 10, with your stack always one hundred big blinds so the game
+5, or 5 and 10. A hundred big blinds is what you sit down with the first time; after that you keep what you have, so the game
 plays the same at every level. Tilt on or off, which only appears on a device
 that can report its orientation. There is also a reset that clears all stats.
 
-Anyone who runs out of chips is topped back up to a full stack at the start of
-the next hand, so a practice session never ends because somebody busted.
+Bots who run out of chips are topped back up at the start of the next hand,
+so the table never empties. You are not: see below.
 
 The hand you are in the middle of is saved too, so closing the app and coming
 back later puts you back in the same seat with the same cards, the same board

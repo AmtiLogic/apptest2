@@ -150,6 +150,22 @@ button { font: inherit; color: inherit; border: none; background: none; cursor: 
 .run-bb { color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .run-bb.low { color: var(--mistake); }
 
+/* The free table's running total, in the same slot the run line uses. */
+.bankroll-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ink-faint);
+}
+.bankroll-line[hidden] { display: none; }
+.bankroll-net { font-variant-numeric: tabular-nums; color: var(--ink-dim); }
+.bankroll-net.down { color: var(--mistake); }
+.bankroll-net.up { color: var(--good); }
+.bankroll-busts { color: var(--ink-faint); }
+
 
 .topbar {
   flex: 0 0 auto;
@@ -2212,6 +2228,7 @@ body.folding .hero-readout { opacity: 0.4; transition: opacity 0.16s ease; }
   .level-line { grid-area: level; }
   .level-track { grid-area: track; width: 90px; margin-top: 2px; }
   .run-line { grid-area: run; margin-top: 2px; }
+  .bankroll-line { grid-area: run; margin-top: 2px; }
 
   .felt {
     max-width: none;
